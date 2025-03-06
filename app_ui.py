@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 
 # Backend API URL
-API_URL = "http://127.0.0.1:8000"
+API_URL = "https://afc-fencing-app-1.onrender.com"
 
 st.title("AFC Fencing Job Estimator")
 
