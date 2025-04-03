@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: afc-proposal
+    env: docker
+    repo: https://github.com/tylerrogerss/afc-proposal
+    branch: main
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+    autoDeploy: true
