@@ -1,5 +1,6 @@
 import math
 import uuid
+from collections import OrderedDict
 
 
 # Default labor values
@@ -91,29 +92,53 @@ def calculate_materials(fence_type, lf, cp, ep, height, spacing=8, option_d="No"
         return math.ceil(value * 100) / 100
 
     if fence_type.lower() == "chain link":
-        terminal_posts = math.ceil(cp + ep)
-        line_posts = math.ceil(lf / spacing) - terminal_posts
-        top_rail = lf
-        tension_wire = (lf * 2) + 10 if option_d.lower() == "no" else (cp + 10) + (ep + line_posts) * 5
+        terminal_posts = cp + ep
+        line_posts = (lf / spacing) - cp - ep
+        line_posts = round_up(line_posts)
 
-        return {
-            "top_rail": round_up(top_rail),
-            "terminal_posts": round_up(terminal_posts),
-            "line_posts": round_up(line_posts),
-            "terminal_post_caps": round_up(terminal_posts),
-            "line_post_caps": round_up(line_posts),
-            "eye_tops": round_up(line_posts),
-            "tension_wire": round_up(tension_wire),
-            "brace_bands": round_up(ep + (2 * cp)),
-            "tension_bands": round_up((height - 1) * ((cp * 2) + ep)),
-            "nuts_and_bolts": round_up((height - 1) * ((cp * 2) + ep)),
-            "tension_bars": round_up(ep + (2 * cp)),
-            "rail_ends": round_up(ep + (2 * cp)),
-            "chain_link_ties": round_up(lf + (line_posts * height)),
-            "hog_rings": round_up((lf * 12) / 10),
-            "bags_of_concrete": round_up((terminal_posts + line_posts) * 1.5),
-            "cans_of_spray_paint": round_up(terminal_posts),
-        }
+        top_rail = round_up(lf)
+        terminal_post_caps = round_up(terminal_posts)
+        line_post_caps = round_up(line_posts)
+        eye_tops = round_up(line_posts)
+
+        # Correct tension wire formula
+        tension_wire = round_up((lf + 10) + (cp * 5) + (ep * 5))
+
+
+        brace_bands = round_up(ep + (2 * cp))
+        tension_bands = round_up((height - 1) * ((cp * 2) + ep))
+        nuts_and_bolts = round_up(brace_bands + tension_bands)
+        tension_bars = round_up(ep + (2 * cp))
+        rail_ends = round_up(ep + (2 * cp))
+
+        # Correct chain link ties formula
+        chain_link_ties = round_up((lf * 12 / 10) + (line_posts * 6))
+
+        hog_rings = round_up((lf * 12) / 10)
+
+        # Correct bags of concrete formula
+        bags_of_concrete = round_up((line_posts + terminal_posts) * 1.75)
+
+        cans_of_spray_paint = round_up(terminal_posts)
+
+        return OrderedDict([
+            ("top_rail", top_rail),
+            ("terminal_posts", round_up(terminal_posts)),
+            ("line_posts", line_posts),
+            ("terminal_post_caps", terminal_post_caps),
+            ("line_post_caps", line_post_caps),
+            ("eye_tops", eye_tops),
+            ("tension_wire", tension_wire),
+            ("brace_bands", brace_bands),
+            ("tension_bands", tension_bands),
+            ("nuts_and_bolts", nuts_and_bolts),
+            ("tension_bars", tension_bars),
+            ("rail_ends", rail_ends),
+            ("chain_link_ties", chain_link_ties),
+            ("hog_rings", hog_rings),
+            ("bags_of_concrete", bags_of_concrete),
+            ("cans_of_spray_paint", cans_of_spray_paint),
+        ])
 
     elif fence_type.lower() == "sp wrought iron":
         panel = (lf * 12) / 94
@@ -234,6 +259,7 @@ def calculate_total_costs(fence_details, material_prices):
     labor_costs = calculate_labor_cost()
 
     return {
+        "materials_needed": materials_needed,
         "material_costs": material_costs,
         "material_total": material_total,
         "labor_costs": labor_costs,

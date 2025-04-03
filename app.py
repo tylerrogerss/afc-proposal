@@ -105,6 +105,7 @@ def cost_estimation(data: CostEstimation):
             "message": "Cost estimation completed successfully",
             "job_id": data.job_id,
             "costs": {
+                "materials_needed": total_costs["materials_needed"],
                 "material_costs": total_costs["material_costs"],
                 "material_total": total_costs["material_total"],
                 "labor_costs": total_costs["labor_costs"],
@@ -115,8 +116,4 @@ def cost_estimation(data: CostEstimation):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
 
