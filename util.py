@@ -275,27 +275,30 @@ def calculate_materials(fence_type, lf, cp, ep, height, spacing=8, option_d="No"
         hog_rings = round_up((lf * 12) / 10)
         bags_of_concrete = round_up((line_posts + terminal_posts) * 1.75)
         cans_of_spray_paint = round_up(terminal_posts)
+        include_top_rail = option_d.lower() != "no"
 
-        # Only include line_post_caps if top rail is not present
+        # Assemble materials
         materials = OrderedDict([
-            ("top_rail", top_rail),
+            ("chain_link", round_up(lf)),
+            ("top_rail", top_rail if include_top_rail else 0),
             ("terminal_posts", round_up(terminal_posts)),
             ("line_posts", line_posts),
             ("terminal_post_caps", terminal_post_caps),
-            ("eye_tops", eye_tops),
+            ("eye_tops", eye_tops if include_top_rail else 0),
             ("tension_wire", tension_wire),
             ("brace_bands", brace_bands),
             ("tension_bands", tension_bands),
             ("nuts_and_bolts", nuts_and_bolts),
             ("tension_bars", tension_bars),
-            ("rail_ends", rail_ends),
+            ("rail_ends", rail_ends if include_top_rail else 0),
             ("chain_link_ties", chain_link_ties),
             ("hog_rings", hog_rings),
             ("bags_of_concrete", bags_of_concrete),
             ("cans_of_spray_paint", cans_of_spray_paint),
         ])
 
-        if option_d.lower() == "no":
+        # Only add line_post_caps if top rail is not included
+        if not include_top_rail:
             materials["line_post_caps"] = round_up(line_posts)
 
         return materials
