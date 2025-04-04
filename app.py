@@ -89,7 +89,7 @@ def cost_estimation(data: CostEstimation):
         total_costs = util.calculate_total_costs(
             fence_details,
             data.material_prices,
-            pricing_strategy=data.pricing_strategy
+            data.pricing_strategy
         )
 
         return {
@@ -98,7 +98,9 @@ def cost_estimation(data: CostEstimation):
             "costs": {
                 "materials_needed": total_costs["materials_needed"],
                 "detailed_costs": total_costs["detailed_costs"],
-                "material_total": total_costs["material_total"]
+                "material_total": total_costs["material_total"],
+                "labor_costs": total_costs["labor_costs"],
+                "total_cost": total_costs["total_cost"]
             }
         }
     except Exception as e:

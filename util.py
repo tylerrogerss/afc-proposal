@@ -353,12 +353,21 @@ def calculate_total_costs(fence_details, material_prices, pricing_strategy="Mast
     height = fence_details.get("height")
     top_rail = fence_details.get("option_d", "No").lower() != "no"
 
+    # Calculate material costs
     detailed_material_costs, material_total = calculate_material_costs(
         materials_needed, material_prices, pricing_strategy, height, top_rail
     )
+
+    # Calculate labor costs
+    labor_costs = calculate_labor_cost()
+
+    total_cost = round(material_total + labor_costs["total_labor_cost"], 2)
 
     return {
         "materials_needed": materials_needed,
         "detailed_costs": detailed_material_costs,
         "material_total": material_total,
+        "labor_costs": labor_costs,
+        "total_cost": total_cost
     }
+
