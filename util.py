@@ -355,51 +355,27 @@ def calculate_labor_cost(daily_rate=None, num_days=None, num_employees=None):
         "total_labor_cost": round(total_labor_cost, 2),
     }
 
-def calculate_total_costs(
-    fence_details,
-    material_prices,
-    pricing_strategy="Master Halo Pricing",
-    daily_rate=None,
-    num_days=None,
-    num_employees=None
-):
+def calculate_total_costs(fence_details, material_prices, pricing_strategy="Master Halo Pricing", daily_rate=None, num_days=None, num_employees=None):
     materials_needed = fence_details["materials_needed"]
     height = fence_details.get("height")
     top_rail = fence_details.get("option_d", "No").lower() != "no"
 
-    # Step 1: Base material cost breakdown
     detailed_material_costs, material_total = calculate_material_costs(
-        materials_needed,
-        material_prices,
-        pricing_strategy,
-        height,
-        top_rail
+        materials_needed, material_prices, pricing_strategy, height, top_rail
     )
 
-    # Step 2: Apply pricing-specific adjustments
-    if pricing_strategy == "Master Halo Pricing":
-        tax_rate = 0.072
-        delivery_charge = 100.00
-    elif pricing_strategy == "Fence Specialties Pricing":
-        tax_rate = 0.0825
-        delivery_charge = 0.00
-    else:
-        tax_rate = 0.00
-        delivery_charge = 0.00
-
-    tax_amount = round(material_total * tax_rate, 2)
-    final_material_total = round(material_total + tax_amount + delivery_charge, 2)
-
-    # Step 3: Labor
     labor_costs = calculate_labor_cost(daily_rate, num_days, num_employees)
 
-    # Step 4: Return all
+    # Add tax and delivery logic
+    tax_rate = 0.072 if pricing_strategy == "Master Halo Pricing" else 0.0825
+    delivery_charge = 100.00 if pricing_strategy == "Master Halo Pricing" else 0.00
+    material_tax = round(material_total * tax_rate, 2)
+
     return {
         "materials_needed": materials_needed,
         "detailed_costs": detailed_material_costs,
         "material_total": material_total,
-        "tax_amount": tax_amount,
+        "material_tax": material_tax,
         "delivery_charge": delivery_charge,
-        "final_material_total": final_material_total,
-        "labor_costs": labor_costs
+        "labor_costs": labor_costs,
     }

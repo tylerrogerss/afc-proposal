@@ -100,13 +100,12 @@ def cost_estimation(data: CostEstimation):
         )
 
         square_footage_cost = round(data.price_per_square_foot * fence_details["linear_feet"], 2)
-
         grand_total = round(
-            total_costs["material_total"] +
-            total_costs["material_tax"] +
-            total_costs["delivery_charge"] +
-            total_costs["labor_costs"]["total_labor_cost"] +
-            square_footage_cost,
+            total_costs["material_total"]
+            + total_costs["material_tax"]
+            + total_costs["delivery_charge"]
+            + total_costs["labor_costs"]["total_labor_cost"]
+            + square_footage_cost,
             2
         )
 
