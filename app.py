@@ -1,9 +1,7 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import util
-
-
 
 app = FastAPI()
 
@@ -16,14 +14,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 class JobDetails(BaseModel):
     client_name: str
     contact_info: str
     job_address: str
     job_scope: str
     notes: str = ""
-
 
 class FenceDetails(BaseModel):
     job_id: str
@@ -34,22 +30,19 @@ class FenceDetails(BaseModel):
     height: int
     option_d: str = "No"
 
-
 class Notes(BaseModel):
     job_id: str
     notes: str
 
-
 class CostEstimation(BaseModel):
     job_id: str
     price_per_square_foot: float
+    pricing_strategy: str  # Now required
     material_prices: dict = {}
-
 
 @app.get("/")
 def hello_world():
     return {"message": "AFC Fencing API is running!"}
-
 
 @app.post("/new_bid/job_details")
 def submit_job_details(details: JobDetails):
@@ -60,7 +53,6 @@ def submit_job_details(details: JobDetails):
         return {"message": "Job details saved successfully", "job_id": job_id, "job_data": job_data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.post("/new_bid/fence_details")
 def submit_fence_details(details: FenceDetails):
@@ -74,7 +66,6 @@ def submit_fence_details(details: FenceDetails):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @app.post("/new_bid/add_notes")
 def add_notes(note_data: Notes):
     try:
@@ -85,18 +76,26 @@ def add_notes(note_data: Notes):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @app.post("/new_bid/cost_estimation")
 def cost_estimation(data: CostEstimation):
     try:
         if data.job_id not in util.job_database:
             raise HTTPException(status_code=404, detail="Job ID does not exist")
 
+        if data.pricing_strategy not in util.pricing_tables:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid pricing strategy. Choose from: {list(util.pricing_tables.keys())}"
+            )
+
         fence_details = util.job_database[data.job_id].get("fence_details")
         if not fence_details:
             raise HTTPException(status_code=400, detail="Fence details not provided for this job")
 
-        total_costs = util.calculate_total_costs(fence_details, data.material_prices)
+        total_costs = util.calculate_total_costs(
+            fence_details, data.material_prices, pricing_strategy=data.pricing_strategy
+        )
+
         square_footage_cost = round(data.price_per_square_foot * fence_details["linear_feet"], 2)
         total_cost = round(
             total_costs["material_total"] + total_costs["labor_costs"]["total_labor_cost"] + square_footage_cost, 2)
@@ -115,5 +114,3 @@ def cost_estimation(data: CostEstimation):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
