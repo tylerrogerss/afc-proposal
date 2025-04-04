@@ -82,34 +82,23 @@ def cost_estimation(data: CostEstimation):
         if data.job_id not in util.job_database:
             raise HTTPException(status_code=404, detail="Job ID does not exist")
 
-        if data.pricing_strategy not in util.pricing_tables:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid pricing strategy. Choose from: {list(util.pricing_tables.keys())}"
-            )
-
         fence_details = util.job_database[data.job_id].get("fence_details")
         if not fence_details:
             raise HTTPException(status_code=400, detail="Fence details not provided for this job")
 
         total_costs = util.calculate_total_costs(
-            fence_details, data.material_prices, pricing_strategy=data.pricing_strategy
+            fence_details,
+            data.material_prices,
+            pricing_strategy=data.pricing_strategy
         )
-
-        square_footage_cost = round(data.price_per_square_foot * fence_details["linear_feet"], 2)
-        total_cost = round(
-            total_costs["material_total"] + total_costs["labor_costs"]["total_labor_cost"] + square_footage_cost, 2)
 
         return {
             "message": "Cost estimation completed successfully",
             "job_id": data.job_id,
             "costs": {
                 "materials_needed": total_costs["materials_needed"],
-                "material_costs": total_costs["material_costs"],
-                "material_total": total_costs["material_total"],
-                "labor_costs": total_costs["labor_costs"],
-                "square_footage_cost": square_footage_cost,
-                "total_cost": total_cost
+                "detailed_costs": total_costs["detailed_costs"],
+                "material_total": total_costs["material_total"]
             }
         }
     except Exception as e:

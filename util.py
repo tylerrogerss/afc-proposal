@@ -296,7 +296,6 @@ def calculate_materials(fence_type, lf, cp, ep, height, spacing=8, option_d="No"
             ("cans_of_spray_paint", cans_of_spray_paint),
         ])
 
-    # Logic for other fence types remain unchanged
     raise ValueError(f"Unsupported fence type: {fence_type}")
 
 def add_notes_to_job(job_id, notes):
@@ -313,22 +312,28 @@ def calculate_material_costs(materials, custom_prices=None, pricing_strategy=Non
         unit_sizes = {k: v["unit_size"] for k, v in price_table.items()}
     else:
         merged_prices = default_material_prices.copy()
-        unit_sizes = {k: 1 for k in materials}  # fallback if no unit sizes
+        unit_sizes = {k: 1 for k in materials}
 
     merged_prices.update(custom_prices)
 
-    individual_costs = {}
+    detailed_costs = {}
     total_cost = 0
 
     for material, quantity in materials.items():
         unit_size = unit_sizes.get(material, 1)
         order_size = math.ceil(quantity / unit_size)
-        price_per_unit = round(merged_prices.get(material, 0), 2)
-        individual_cost = round(order_size * price_per_unit, 2)
-        individual_costs[material] = individual_cost
-        total_cost += individual_cost
+        unit_price = round(merged_prices.get(material, 0), 2)
+        material_total = round(order_size * unit_price, 2)
+        detailed_costs[material] = {
+            "quantity": quantity,
+            "unit_size": unit_size,
+            "order_size": order_size,
+            "unit_price": unit_price,
+            "total_cost": material_total
+        }
+        total_cost += material_total
 
-    return individual_costs, round(total_cost, 2)
+    return detailed_costs, round(total_cost, 2)
 
 def calculate_labor_cost(daily_rate=None, num_days=None, num_employees=None):
     daily_rate = daily_rate if daily_rate is not None else default_labor_values["daily_rate"]
@@ -348,16 +353,12 @@ def calculate_total_costs(fence_details, material_prices, pricing_strategy="Mast
     height = fence_details.get("height")
     top_rail = fence_details.get("option_d", "No").lower() != "no"
 
-    material_costs, material_total = calculate_material_costs(
+    detailed_material_costs, material_total = calculate_material_costs(
         materials_needed, material_prices, pricing_strategy, height, top_rail
     )
 
-    labor_costs = calculate_labor_cost()
-
     return {
         "materials_needed": materials_needed,
-        "material_costs": material_costs,
+        "detailed_costs": detailed_material_costs,
         "material_total": material_total,
-        "labor_costs": labor_costs,
-        "total_cost": round(material_total + labor_costs["total_labor_cost"], 2),
     }
