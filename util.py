@@ -352,26 +352,21 @@ def calculate_labor_cost(daily_rate=None, num_days=None, num_employees=None):
         "total_labor_cost": round(total_labor_cost, 2),
     }
 
-def calculate_total_costs(fence_details, material_prices, pricing_strategy="Master Halo Pricing"):
+def calculate_total_costs(fence_details, material_prices, pricing_strategy="Master Halo Pricing",
+                          daily_rate=None, num_days=None, num_employees=None):
     materials_needed = fence_details["materials_needed"]
     height = fence_details.get("height")
     top_rail = fence_details.get("option_d", "No").lower() != "no"
 
-    # Calculate material costs
     detailed_material_costs, material_total = calculate_material_costs(
         materials_needed, material_prices, pricing_strategy, height, top_rail
     )
 
-    # Calculate labor costs
-    labor_costs = calculate_labor_cost()
-
-    total_cost = round(material_total + labor_costs["total_labor_cost"], 2)
+    labor_costs = calculate_labor_cost(daily_rate, num_days, num_employees)
 
     return {
         "materials_needed": materials_needed,
         "detailed_costs": detailed_material_costs,
         "material_total": material_total,
-        "labor_costs": labor_costs,
-        "total_cost": total_cost
+        "labor_costs": labor_costs
     }
-
