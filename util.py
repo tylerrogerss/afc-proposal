@@ -264,7 +264,6 @@ def calculate_materials(fence_type, lf, cp, ep, height, spacing=8, option_d="No"
         line_posts = round_up((lf / spacing) - cp - ep)
         top_rail = round_up(lf)
         terminal_post_caps = round_up(terminal_posts)
-        line_post_caps = round_up(line_posts)
         eye_tops = round_up(line_posts)
         tension_wire = round_up((lf + 10) + (cp * 5) + (ep * 5))
         brace_bands = round_up(ep + (2 * cp))
@@ -277,12 +276,12 @@ def calculate_materials(fence_type, lf, cp, ep, height, spacing=8, option_d="No"
         bags_of_concrete = round_up((line_posts + terminal_posts) * 1.75)
         cans_of_spray_paint = round_up(terminal_posts)
 
-        return OrderedDict([
+        # Only include line_post_caps if top rail is not present
+        materials = OrderedDict([
             ("top_rail", top_rail),
             ("terminal_posts", round_up(terminal_posts)),
             ("line_posts", line_posts),
             ("terminal_post_caps", terminal_post_caps),
-            ("line_post_caps", line_post_caps),
             ("eye_tops", eye_tops),
             ("tension_wire", tension_wire),
             ("brace_bands", brace_bands),
@@ -295,6 +294,11 @@ def calculate_materials(fence_type, lf, cp, ep, height, spacing=8, option_d="No"
             ("bags_of_concrete", bags_of_concrete),
             ("cans_of_spray_paint", cans_of_spray_paint),
         ])
+
+        if option_d.lower() == "no":
+            materials["line_post_caps"] = round_up(line_posts)
+
+        return materials
 
     raise ValueError(f"Unsupported fence type: {fence_type}")
 
