@@ -89,18 +89,30 @@ def cost_estimation(data: CostEstimation):
         total_costs = util.calculate_total_costs(
             fence_details,
             data.material_prices,
-            data.pricing_strategy
+            data.pricing_strategy,
+            data.daily_rate,
+            data.num_days,
+            data.num_employees
+        )
+
+        square_footage_cost = round(data.price_per_square_foot * fence_details["linear_feet"], 2)
+        grand_total = round(
+            total_costs["material_total"] +
+            total_costs["labor_costs"]["total_labor_cost"] +
+            square_footage_cost, 2
         )
 
         return {
             "message": "Cost estimation completed successfully",
             "job_id": data.job_id,
+            "price_per_square_foot": data.price_per_square_foot,
             "costs": {
                 "materials_needed": total_costs["materials_needed"],
                 "detailed_costs": total_costs["detailed_costs"],
                 "material_total": total_costs["material_total"],
                 "labor_costs": total_costs["labor_costs"],
-                "total_cost": total_costs["total_cost"]
+                "square_footage_cost": square_footage_cost,
+                "total_cost": grand_total
             }
         }
     except Exception as e:
