@@ -37,8 +37,12 @@ class Notes(BaseModel):
 class CostEstimation(BaseModel):
     job_id: str
     price_per_square_foot: float
-    pricing_strategy: str  # Now required
+    pricing_strategy: str = "Master Halo Pricing"
     material_prices: dict = {}
+    daily_rate: float = 150.0
+    num_days: int = 5
+    num_employees: int = 3
+
 
 @app.get("/")
 def hello_world():
