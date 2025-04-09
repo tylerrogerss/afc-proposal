@@ -15,7 +15,7 @@ app.add_middleware(
 )
 
 class JobDetails(BaseModel):
-    client_name: str
+    proposal_to: str
     phone: str
     email: str
     job_address: str
@@ -53,7 +53,7 @@ def hello_world():
 def submit_job_details(details: JobDetails):
     try:
         job_id, job_data = util.save_job_details(
-            client_name=details.client_name,
+            proposal_to=details.proposal_to,
             phone=details.phone,
             email=details.email,
             job_address=details.job_address,
@@ -105,20 +105,17 @@ def cost_estimation(data: CostEstimation):
             data.num_employees
         )
 
-        square_footage_cost = round(data.price_per_square_foot * fence_details["linear_feet"], 2)
         grand_total = round(
-            total_costs["material_total"]
-            + total_costs["material_tax"]
-            + total_costs["delivery_charge"]
-            + total_costs["labor_costs"]["total_labor_cost"]
-            + square_footage_cost,
-            2
+            total_costs["material_total"] +
+            total_costs["material_tax"] +
+            total_costs["delivery_charge"] +
+            total_costs["labor_costs"]["total_labor_cost"], 2
         )
 
         return {
             "message": "Cost estimation completed successfully",
             "job_id": data.job_id,
-            "price_per_square_foot": data.price_per_square_foot,
+            "price_per_linear_foot": total_costs["price_per_linear_foot"],
             "costs": {
                 "materials_needed": total_costs["materials_needed"],
                 "detailed_costs": total_costs["detailed_costs"],
@@ -126,7 +123,6 @@ def cost_estimation(data: CostEstimation):
                 "material_tax": total_costs["material_tax"],
                 "delivery_charge": total_costs["delivery_charge"],
                 "labor_costs": total_costs["labor_costs"],
-                "square_footage_cost": square_footage_cost,
                 "total_cost": grand_total
             }
         }

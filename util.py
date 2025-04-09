@@ -223,10 +223,10 @@ pricing_tables = {
     "Fence Specialties Pricing": fence_specialties_pricing
 }
 
-def save_job_details(client_name, phone, email, job_address, job_name, notes=''):
+def save_job_details(proposal_to, phone, email, job_address, job_name, notes=''):
     job_id = str(uuid.uuid4())
     job_data = {
-        "client_name": client_name,
+        "proposal_to": proposal_to,
         "phone": phone,
         "email": email,
         "job_address": job_address,
@@ -356,10 +356,11 @@ def calculate_labor_cost(daily_rate=None, num_days=None, num_employees=None):
         "total_labor_cost": round(total_labor_cost, 2),
     }
 
-def calculate_total_costs(fence_details, material_prices, pricing_strategy="Master Halco Pricing", daily_rate=None, num_days=None, num_employees=None):
+def calculate_total_costs(fence_details, material_prices, pricing_strategy="Master Halo Pricing", daily_rate=None, num_days=None, num_employees=None):
     materials_needed = fence_details["materials_needed"]
     height = fence_details.get("height")
     top_rail = fence_details.get("option_d", "No").lower() != "no"
+    linear_feet = fence_details.get("linear_feet")
 
     detailed_material_costs, material_total = calculate_material_costs(
         materials_needed, material_prices, pricing_strategy, height, top_rail
@@ -367,10 +368,12 @@ def calculate_total_costs(fence_details, material_prices, pricing_strategy="Mast
 
     labor_costs = calculate_labor_cost(daily_rate, num_days, num_employees)
 
-    # Add tax and delivery logic
-    tax_rate = 0.072 if pricing_strategy == "Master Halco Pricing" else 0.0825
-    delivery_charge = 100.00 if pricing_strategy == "Master Halco Pricing" else 0.00
+    tax_rate = 0.072 if pricing_strategy == "Master Halo Pricing" else 0.0825
+    delivery_charge = 100.00 if pricing_strategy == "Master Halo Pricing" else 0.00
     material_tax = round(material_total * tax_rate, 2)
+
+    subtotal = material_total + material_tax + delivery_charge + labor_costs["total_labor_cost"]
+    price_per_linear_foot = round(subtotal / linear_feet, 2) if linear_feet else 0
 
     return {
         "materials_needed": materials_needed,
@@ -379,4 +382,5 @@ def calculate_total_costs(fence_details, material_prices, pricing_strategy="Mast
         "material_tax": material_tax,
         "delivery_charge": delivery_charge,
         "labor_costs": labor_costs,
+        "price_per_linear_foot": price_per_linear_foot
     }
