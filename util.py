@@ -10,8 +10,8 @@ default_labor_values = {
     "num_employees": 3,
 }
 
-# Master Halo pricing unit sizes and unit prices
-master_halo_pricing = {
+# Master Halco pricing unit sizes and unit prices
+master_halco_pricing = {
     ("6", True): {
         "chain_link": {"unit_size": 50, "unit_price": 133.50},
         "top_rail": {"unit_size": 21, "unit_price": 30.24},
@@ -219,17 +219,18 @@ fence_specialties_pricing = {
 job_database = {}
 
 pricing_tables = {
-    "Master Halo Pricing": master_halo_pricing,
+    "Master Halco Pricing": master_halco_pricing,
     "Fence Specialties Pricing": fence_specialties_pricing
 }
 
-def save_job_details(client_name, contact_info, job_address, job_scope, notes=''):
+def save_job_details(client_name, phone, email, job_address, job_name, notes=''):
     job_id = str(uuid.uuid4())
     job_data = {
         "client_name": client_name,
-        "contact_info": contact_info,
+        "phone": phone,
+        "email": email,
         "job_address": job_address,
-        "job_scope": job_scope,
+        "job_name": job_name,
         "notes": notes,
     }
     job_database[job_id] = job_data
@@ -355,7 +356,7 @@ def calculate_labor_cost(daily_rate=None, num_days=None, num_employees=None):
         "total_labor_cost": round(total_labor_cost, 2),
     }
 
-def calculate_total_costs(fence_details, material_prices, pricing_strategy="Master Halo Pricing", daily_rate=None, num_days=None, num_employees=None):
+def calculate_total_costs(fence_details, material_prices, pricing_strategy="Master Halco Pricing", daily_rate=None, num_days=None, num_employees=None):
     materials_needed = fence_details["materials_needed"]
     height = fence_details.get("height")
     top_rail = fence_details.get("option_d", "No").lower() != "no"
@@ -367,8 +368,8 @@ def calculate_total_costs(fence_details, material_prices, pricing_strategy="Mast
     labor_costs = calculate_labor_cost(daily_rate, num_days, num_employees)
 
     # Add tax and delivery logic
-    tax_rate = 0.072 if pricing_strategy == "Master Halo Pricing" else 0.0825
-    delivery_charge = 100.00 if pricing_strategy == "Master Halo Pricing" else 0.00
+    tax_rate = 0.072 if pricing_strategy == "Master Halco Pricing" else 0.0825
+    delivery_charge = 100.00 if pricing_strategy == "Master Halco Pricing" else 0.00
     material_tax = round(material_total * tax_rate, 2)
 
     return {

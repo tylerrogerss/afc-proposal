@@ -16,9 +16,10 @@ app.add_middleware(
 
 class JobDetails(BaseModel):
     client_name: str
-    contact_info: str
+    phone: str
+    email: str
     job_address: str
-    job_scope: str
+    job_name: str
     notes: str = ""
 
 class FenceDetails(BaseModel):
@@ -37,7 +38,7 @@ class Notes(BaseModel):
 class CostEstimation(BaseModel):
     job_id: str
     price_per_square_foot: float
-    pricing_strategy: str = "Master Halo Pricing"
+    pricing_strategy: str = "Master Halco Pricing"
     material_prices: dict = {}
     daily_rate: float = 150.0
     num_days: int = 5
@@ -52,7 +53,12 @@ def hello_world():
 def submit_job_details(details: JobDetails):
     try:
         job_id, job_data = util.save_job_details(
-            details.client_name, details.contact_info, details.job_address, details.job_scope, details.notes
+            client_name=details.client_name,
+            phone=details.phone,
+            email=details.email,
+            job_address=details.job_address,
+            job_name=details.job_name,
+            notes=details.notes
         )
         return {"message": "Job details saved successfully", "job_id": job_id, "job_data": job_data}
     except Exception as e:
