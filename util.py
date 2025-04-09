@@ -216,6 +216,7 @@ fence_specialties_pricing = {
     },
 }
 
+default_material_prices = {}
 job_database = {}
 
 pricing_tables = {

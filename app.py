@@ -37,7 +37,6 @@ class Notes(BaseModel):
 
 class CostEstimation(BaseModel):
     job_id: str
-    price_per_square_foot: float
     pricing_strategy: str = "Master Halco Pricing"
     material_prices: dict = {}
     daily_rate: float = 150.0
