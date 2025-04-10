@@ -5,6 +5,14 @@ from fastapi.responses import FileResponse
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.utils import ImageReader
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import Paragraph
+from reportlab.lib import colors
+from reportlab.lib.units import inch
+from reportlab.platypus import Frame
+from reportlab.platypus import Paragraph
+from reportlab.lib.enums import TA_LEFT
+from datetime import datetime
 from io import BytesIO
 import os
 import util
@@ -154,42 +162,79 @@ def generate_proposal(data: ProposalRequest):
     c = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
 
-    # Draw Logo (centered)
-    logo_path = "american-fence-concepts-logo_sm.webp"  # make sure this file exists in root
+    # === Logo
+    logo_path = "american-fence-concepts-logo_sm.webp"
     if os.path.exists(logo_path):
         logo = ImageReader(logo_path)
         logo_width = 180
-        c.drawImage(logo, (width - logo_width) / 2, height - 100, width=logo_width, preserveAspectRatio=True, mask='auto')
+        c.drawImage(logo, (width - logo_width) / 2, height - 100, width=logo_width, preserveAspectRatio=True,
+                    mask='auto')
 
-    # Company Address
+    # === Company Info (centered)
     c.setFont("Helvetica", 10)
     c.drawCentredString(width / 2, height - 110, "2383 Via Rancheros, Fallbrook, CA 92028")
     c.drawCentredString(width / 2, height - 123, "www.americanfenceconcepts.com")
     c.drawCentredString(width / 2, height - 135, "CA LIC #1037833")
 
-    # Jon Keys & Beau Postal
+    # === Contact Info (left aligned, no indent)
     c.setFont("Helvetica", 11)
-    contact_text = """Jon Keys
-760-877-9951
-j.keys@americanfenceconcepts.com
+    contact_lines = [
+        "Jon Keys",
+        "760-877-9951",
+        "j.keys@americanfenceconcepts.com",
+        "",
+        "Beau Postal",
+        "949-259-8868",
+        "bpostal@americanfenceconcepts.com"
+    ]
+    y = height - 180
+    for line in contact_lines:
+        c.drawString(50, y, line)
+        y -= 15
 
-Beau Postal
-949-259-8868
-bpostal@americanfenceconcepts.com"""
-    text_object = c.beginText(50, height - 200)
-    for line in contact_text.splitlines():
-        text_object.textLine(line)
-    c.drawText(text_object)
+    # === Job Info (aligned with contact info)
+    job_info = {
+        "Proposal To:": job.get("proposal_to", ""),
+        "Date:": datetime.now().strftime("%B %d, %Y"),
+        "Phone:": job.get("phone", ""),
+        "Email:": job.get("email", ""),
+        "Job Address:": job.get("job_address", ""),
+        "Job Name:": job.get("job_name", "")
+    }
 
-    # Greeting
-    c.setFont("Helvetica", 12)
-    greeting = f"{first_name},\n\nAmerican Fence Concepts appreciates the opportunity to offer the following proposal. " \
-               "We agree to perform the below stated work and hereby agrees to fabricate, furnish, and install the described " \
-               "work in a professional and timely work like manner. We look forward to doing business with you."
-    text_obj = c.beginText(50, height - 330)
-    for line in greeting.splitlines():
-        text_obj.textLine(line)
-    c.drawText(text_obj)
+    y -= 30  # space between sections
+    for label, value in job_info.items():
+        text = f"{label} {value}"
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(50, y, label)
+        text_width = c.stringWidth(label, "Helvetica-Bold", 10)
+        c.setFont("Helvetica", 10)
+        c.drawString(50 + text_width + 5, y, value)  # 5px spacing after label
+        y -= 15
+
+    # Greeting and body text
+    first_name = job.get("proposal_to", "").split()[0]
+    styles = getSampleStyleSheet()
+    style = styles["Normal"]
+    style.fontName = "Helvetica"
+    style.fontSize = 12
+    style.leading = 16
+    style.leftIndent = 0
+    style.rightIndent = 0
+
+    greeting_paragraph = Paragraph(
+        f"{first_name},<br/><br/>"
+        "American Fence Concepts appreciates the opportunity to offer the following proposal. "
+        "We agree to perform the below stated work and hereby agrees to fabricate, furnish, and install "
+        "the described work in a professional and timely work like manner. We look forward to doing business with you.",
+        style
+    )
+
+    # Drop the paragraph further down the page to avoid overlap
+    # y = height - 480 starts it well below the job info block
+    frame = Frame(50, height - 560, width - 100, 140, showBoundary=0, leftPadding=0, bottomPadding=0, topPadding=0,
+                  rightPadding=0)
+    frame.addFromList([greeting_paragraph], c)
 
     c.showPage()
     c.save()
