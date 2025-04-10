@@ -376,6 +376,18 @@ def calculate_total_costs(fence_details, material_prices, pricing_strategy="Mast
     subtotal = material_total + material_tax + delivery_charge + labor_costs["total_labor_cost"]
     price_per_linear_foot = round(subtotal / linear_feet, 2) if linear_feet else 0
 
+    # Profit margin breakdown
+    profit_margins = {}
+    for margin in [0.2, 0.3, 0.4, 0.5]:
+        revenue = round(subtotal / (1 - margin), 2)
+        profit = round(revenue - subtotal, 2)
+        price_per_foot = round(revenue / linear_feet, 2) if linear_feet else 0
+        profit_margins[f"{int(margin * 100)}%"] = {
+            "revenue": revenue,
+            "profit": profit,
+            "price_per_linear_foot": price_per_foot
+        }
+
     return {
         "materials_needed": materials_needed,
         "detailed_costs": detailed_material_costs,
@@ -383,5 +395,6 @@ def calculate_total_costs(fence_details, material_prices, pricing_strategy="Mast
         "material_tax": material_tax,
         "delivery_charge": delivery_charge,
         "labor_costs": labor_costs,
-        "price_per_linear_foot": price_per_linear_foot
+        "price_per_linear_foot": price_per_linear_foot,
+        "profit_margins": profit_margins
     }

@@ -122,7 +122,8 @@ def cost_estimation(data: CostEstimation):
                 "material_tax": total_costs["material_tax"],
                 "delivery_charge": total_costs["delivery_charge"],
                 "labor_costs": total_costs["labor_costs"],
-                "total_cost": grand_total
+                "total_cost": grand_total,
+                "profit_margins": total_costs["profit_margins"]
             }
         }
     except Exception as e:
