@@ -50,6 +50,9 @@ class CostEstimation(BaseModel):
     num_days: int = 5
     num_employees: int = 3
 
+class ProposalRequest(BaseModel):
+    job_id: str
+
 
 @app.get("/")
 def hello_world():
@@ -138,10 +141,11 @@ def cost_estimation(data: CostEstimation):
 
 
 @app.post("/generate_proposal")
-def generate_proposal(job_id: str):
+def generate_proposal(data: ProposalRequest):
+    job_id = data.job_id
+
     if job_id not in util.job_database:
         raise HTTPException(status_code=404, detail="Job ID not found.")
-
     job = util.job_database[job_id]
     first_name = job.get("proposal_to", "").split()[0]
 
