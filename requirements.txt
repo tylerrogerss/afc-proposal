@@ -7,3 +7,4 @@ python-multipart
 pdfkit
 python-docx
 reportlab
+cryptography>=3.1

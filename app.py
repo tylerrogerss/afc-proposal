@@ -14,6 +14,7 @@ from reportlab.platypus import Paragraph
 from reportlab.lib.enums import TA_LEFT
 from datetime import datetime
 from io import BytesIO
+from pypdf import PdfReader, PdfWriter
 import os
 import util
 
@@ -236,12 +237,51 @@ def generate_proposal(data: ProposalRequest):
                   rightPadding=0)
     frame.addFromList([greeting_paragraph], c)
 
+    # === Total Cost Bottom-Right
+    try:
+        fence_details = job.get("fence_details")
+        if fence_details:
+            total_costs = util.calculate_total_costs(
+                fence_details,
+                material_prices={},
+                pricing_strategy="Master Halco Pricing",
+                daily_rate=150.0,
+                num_days=5,
+                num_employees=3
+            )
+            grand_total = round(
+                total_costs["material_total"] +
+                total_costs["material_tax"] +
+                total_costs["delivery_charge"] +
+                total_costs["labor_costs"]["total_labor_cost"], 2
+            )
+            formatted_total = "${:,.2f}".format(grand_total)
+            c.setFont("Helvetica-Bold", 12)
+            c.drawRightString(width - 50, 60, f"Total: {formatted_total}")
+    except Exception as e:
+        print(f"Failed to calculate total cost for PDF: {e}")
+
     c.showPage()
     c.save()
     buffer.seek(0)
 
-    output_path = f"proposal_{job_id}.pdf"
-    with open(output_path, "wb") as f:
+    # Save Page 1
+    page1_path = f"page1_{job_id}.pdf"
+    with open(page1_path, "wb") as f:
         f.write(buffer.read())
 
-    return FileResponse(output_path, filename="AFC_Proposal.pdf", media_type="application/pdf")
+        # Combine with second page
+    writer = PdfWriter()
+    writer.append(PdfReader(page1_path))
+
+    pg2_path = "afc-pro-pg2.pdf"
+    if os.path.exists(pg2_path):
+        writer.append(PdfReader(pg2_path))
+    else:
+        raise HTTPException(status_code=500, detail="Second page template not found.")
+
+    final_path = f"proposal_{job_id}.pdf"
+    with open(final_path, "wb") as f:
+        writer.write(f)
+
+    return FileResponse(final_path, filename="AFC_Proposal.pdf", media_type="application/pdf")
