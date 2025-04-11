@@ -8,3 +8,4 @@ pdfkit
 python-docx
 reportlab
 cryptography>=3.1
+pypdf
