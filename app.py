@@ -47,6 +47,8 @@ class FenceDetails(BaseModel):
     height: int
     option_d: str = "No"
     dirt_complexity: str = "soft"
+    grade_of_scope_complexity: float = 0.0
+
 
 class Notes(BaseModel):
     job_id: str
@@ -86,22 +88,33 @@ def submit_job_details(details: JobDetails):
 @app.post("/new_bid/fence_details")
 def submit_fence_details(details: FenceDetails):
     try:
+        # Supported dirt types and their scores
         complexity_scores = {
             "soft": 1.0,
             "hard": 1.5,
-            "jack hammer": 1.8
+            "core drill": 1.8,
+            "jack hammer": 2.0
         }
-        complexity_score = complexity_scores.get(details.dirt_complexity.lower(), 1.0)
 
+        # Normalize and validate dirt complexity
+        dirt_type = details.dirt_complexity.strip().lower()
+        if dirt_type not in complexity_scores:
+            raise ValueError("Invalid dirt_complexity value")
+
+        # Calculate scope complexity from percentage
+        scope_complexity_score = util.calculate_scope_complexity_score(details.grade_of_scope_complexity)
+
+        # Save fence details and compute materials
         materials_needed = util.save_fence_details(
-            details.job_id,
-            details.fence_type,
-            details.linear_feet,
-            details.corner_posts,
-            details.end_posts,
-            details.height,
-            details.option_d,
-            complexity_score  # NEW ARGUMENT
+            job_id=details.job_id,
+            fence_type=details.fence_type,
+            linear_feet=details.linear_feet,
+            corner_posts=details.corner_posts,
+            end_posts=details.end_posts,
+            height=details.height,
+            option_d=details.option_d,
+            dirt_complexity=dirt_type,
+            grade_of_scope_complexity=details.grade_of_scope_complexity
         )
 
         return {
@@ -109,6 +122,9 @@ def submit_fence_details(details: FenceDetails):
             "job_id": details.job_id,
             "materials_needed": materials_needed
         }
+
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

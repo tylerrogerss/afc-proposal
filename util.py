@@ -237,9 +237,30 @@ def save_job_details(proposal_to, phone, email, job_address, job_name, notes='')
     job_database[job_id] = job_data
     return job_id, job_data
 
-def save_fence_details(job_id, fence_type, linear_feet, corner_posts, end_posts, height, option_d="No"):
+def save_fence_details(
+    job_id,
+    fence_type,
+    linear_feet,
+    corner_posts,
+    end_posts,
+    height,
+    option_d="No",
+    dirt_complexity="soft",
+    grade_of_scope_complexity=10.0
+):
     if job_id not in job_database:
         raise ValueError("Job ID does not exist")
+
+    # Calculate both scores
+    scope_score = calculate_scope_complexity_score(grade_of_scope_complexity)
+
+    dirt_scores = {
+        "soft": 1.0,
+        "hard": 1.5,
+        "jack hammer": 2.0,
+        "core drill": 1.8
+    }
+    dirt_score = dirt_scores.get(dirt_complexity.lower(), 1.0)
 
     materials_needed = calculate_materials(
         fence_type, linear_feet, corner_posts, end_posts, height, option_d=option_d
@@ -252,6 +273,10 @@ def save_fence_details(job_id, fence_type, linear_feet, corner_posts, end_posts,
         "end_posts": end_posts,
         "height": height,
         "option_d": option_d,
+        "dirt_complexity": dirt_complexity,
+        "dirt_complexity_score": dirt_score,
+        "grade_of_scope_complexity": grade_of_scope_complexity,
+        "scope_complexity_score": scope_score,
         "materials_needed": materials_needed,
     }
 
@@ -398,3 +423,9 @@ def calculate_total_costs(fence_details, material_prices, pricing_strategy="Mast
         "price_per_linear_foot": price_per_linear_foot,
         "profit_margins": profit_margins
     }
+
+def calculate_scope_complexity_score(percentage: float) -> float:
+    # Clamp to 10–45%
+    percentage = max(10, min(45, percentage))
+    # Linear interpolation between 10% → 1.2 and 45% → 2.0
+    return round(1.2 + (percentage - 10) * ((2.0 - 1.2) / (45 - 10)), 3)
