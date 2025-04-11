@@ -46,6 +46,7 @@ class FenceDetails(BaseModel):
     end_posts: int
     height: int
     option_d: str = "No"
+    dirt_complexity: str = "soft"
 
 class Notes(BaseModel):
     job_id: str
@@ -85,12 +86,29 @@ def submit_job_details(details: JobDetails):
 @app.post("/new_bid/fence_details")
 def submit_fence_details(details: FenceDetails):
     try:
+        complexity_scores = {
+            "soft": 1.0,
+            "hard": 1.5,
+            "jack hammer": 1.8
+        }
+        complexity_score = complexity_scores.get(details.dirt_complexity.lower(), 1.0)
+
         materials_needed = util.save_fence_details(
-            details.job_id, details.fence_type, details.linear_feet, details.corner_posts,
-            details.end_posts, details.height, details.option_d
+            details.job_id,
+            details.fence_type,
+            details.linear_feet,
+            details.corner_posts,
+            details.end_posts,
+            details.height,
+            details.option_d,
+            complexity_score  # NEW ARGUMENT
         )
-        return {"message": "Fence details saved successfully", "job_id": details.job_id,
-                "materials_needed": materials_needed}
+
+        return {
+            "message": "Fence details saved successfully",
+            "job_id": details.job_id,
+            "materials_needed": materials_needed
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
