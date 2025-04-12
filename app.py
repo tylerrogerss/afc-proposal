@@ -57,7 +57,7 @@ class CostEstimation(BaseModel):
     pricing_strategy: str = "Master Halco Pricing"
     material_prices: dict = {}
     daily_rate: float = 150.0
-    num_days: int = 5
+    num_days: int = None
     num_employees: int = 3
     dirt_complexity: str = "soft"
     grade_of_slope_complexity: float = 0.0

@@ -387,11 +387,11 @@ def calculate_total_costs(
     material_prices,
     pricing_strategy="Master Halo Pricing",
     daily_rate=None,
-    num_days=None,
-    num_employees=None,
+    num_days=None,  # <- ADD THIS BACK IN
+    num_employees=3,  # Default to 3 workers
     dirt_complexity="soft",
     grade_of_slope_complexity=0.0,
-    productivity=1.0  # NEW
+    productivity=1.0
 ):
     materials_needed = fence_details["materials_needed"]
     height = fence_details.get("height")
@@ -413,11 +413,13 @@ def calculate_total_costs(
     dirt_score = dirt_scores.get(str(dirt_complexity).lower(), 1.0)
     slope_score = calculate_slope_complexity_score(grade_of_slope_complexity)
 
-    # === Adjust number of days with complexity and productivity
-    if num_days and productivity > 0:
-        adjusted_days = (num_days * dirt_score * slope_score) / productivity
-    else:
-        adjusted_days = num_days  # fallback
+    # === Adjusted Days Formula (Excel Equivalent)
+    if not linear_feet or not productivity or num_employees <= 0:
+        raise ValueError("Missing or invalid values to calculate adjusted_days")
+
+    adjusted_days = round(
+        (linear_feet * 60 / 22 * (slope_score + dirt_score - 1)) / (60 * productivity * num_employees * 6), 2
+    )
 
     # === Labor cost calculation
     labor_costs = calculate_labor_cost(daily_rate, adjusted_days, num_employees)
@@ -453,7 +455,6 @@ def calculate_total_costs(
         "price_per_linear_foot": price_per_linear_foot,
         "profit_margins": profit_margins
     }
-
 
 def calculate_slope_complexity_score(percentage: float) -> float:
     # Clamp to 10–45%
