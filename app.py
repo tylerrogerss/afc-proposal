@@ -11,6 +11,7 @@ from reportlab.lib import colors
 from reportlab.lib.units import inch
 from reportlab.platypus import Frame
 from reportlab.platypus import Paragraph
+from reportlab.pdfgen import canvas
 from reportlab.lib.enums import TA_LEFT
 from datetime import datetime
 from io import BytesIO
@@ -46,9 +47,6 @@ class FenceDetails(BaseModel):
     end_posts: int
     height: int
     option_d: str = "No"
-    dirt_complexity: str = "soft"
-    grade_of_scope_complexity: float = 0.0
-
 
 class Notes(BaseModel):
     job_id: str
@@ -61,10 +59,14 @@ class CostEstimation(BaseModel):
     daily_rate: float = 150.0
     num_days: int = 5
     num_employees: int = 3
+    dirt_complexity: str = "soft"
+    grade_of_scope_complexity: float = 0.0
 
 class ProposalRequest(BaseModel):
     job_id: str
 
+class JobIDRequest(BaseModel):
+    job_id: str
 
 @app.get("/")
 def hello_world():
@@ -88,22 +90,6 @@ def submit_job_details(details: JobDetails):
 @app.post("/new_bid/fence_details")
 def submit_fence_details(details: FenceDetails):
     try:
-        # Supported dirt types and their scores
-        complexity_scores = {
-            "soft": 1.0,
-            "hard": 1.5,
-            "core drill": 1.8,
-            "jack hammer": 2.0
-        }
-
-        # Normalize and validate dirt complexity
-        dirt_type = details.dirt_complexity.strip().lower()
-        if dirt_type not in complexity_scores:
-            raise ValueError("Invalid dirt_complexity value")
-
-        # Calculate scope complexity from percentage
-        scope_complexity_score = util.calculate_scope_complexity_score(details.grade_of_scope_complexity)
-
         # Save fence details and compute materials
         materials_needed = util.save_fence_details(
             job_id=details.job_id,
@@ -112,9 +98,7 @@ def submit_fence_details(details: FenceDetails):
             corner_posts=details.corner_posts,
             end_posts=details.end_posts,
             height=details.height,
-            option_d=details.option_d,
-            dirt_complexity=dirt_type,
-            grade_of_scope_complexity=details.grade_of_scope_complexity
+            option_d=details.option_d
         )
 
         return {
@@ -148,13 +132,26 @@ def cost_estimation(data: CostEstimation):
         if not fence_details:
             raise HTTPException(status_code=400, detail="Fence details not provided for this job")
 
+        # Calculate complexity scores
+        dirt_scores = {
+            "soft": 1.0,
+            "hard": 1.5,
+            "core drill": 1.8,
+            "jack hammer": 2.0
+        }
+        dirt_score = dirt_scores.get(data.dirt_complexity.strip().lower(), 1.0)
+
+        scope_score = util.calculate_scope_complexity_score(data.grade_of_scope_complexity)
+
         total_costs = util.calculate_total_costs(
             fence_details,
             data.material_prices,
             data.pricing_strategy,
             data.daily_rate,
             data.num_days,
-            data.num_employees
+            data.num_employees,
+            dirt_score,
+            scope_score
         )
 
         grand_total = round(
@@ -179,9 +176,9 @@ def cost_estimation(data: CostEstimation):
                 "profit_margins": total_costs["profit_margins"]
             }
         }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.post("/generate_proposal")
 def generate_proposal(data: ProposalRequest):
@@ -319,3 +316,51 @@ def generate_proposal(data: ProposalRequest):
         writer.write(f)
 
     return FileResponse(final_path, filename="AFC_Proposal.pdf", media_type="application/pdf")
+
+@app.post("/generate_materials_list")
+def generate_materials_list(request: JobIDRequest):
+    job_id = request.job_id
+
+    if job_id not in util.job_database:
+        raise HTTPException(status_code=404, detail="Job ID not found.")
+
+    fence_details = util.job_database[job_id].get("fence_details")
+    if not fence_details:
+        raise HTTPException(status_code=400, detail="Fence details not found.")
+
+    materials = fence_details.get("materials_needed")
+    if not materials:
+        raise HTTPException(status_code=400, detail="Materials not calculated.")
+
+    # Create PDF in memory
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(50, height - 50, "📦 Materials List")
+
+    c.setFont("Helvetica-Bold", 12)
+    y = height - 80
+    c.drawString(50, y, "Material")
+    c.drawString(250, y, "Quantity")
+    y -= 20
+
+    c.setFont("Helvetica", 11)
+    for material, quantity in materials.items():
+        c.drawString(50, y, material)
+        c.drawString(250, y, str(quantity))
+        y -= 18
+        if y < 50:
+            c.showPage()
+            y = height - 50
+
+    c.showPage()
+    c.save()
+    buffer.seek(0)
+
+    output_path = f"materials_list_{job_id}.pdf"
+    with open(output_path, "wb") as f:
+        f.write(buffer.read())
+
+    return FileResponse(output_path, filename="Materials_List.pdf", media_type="application/pdf")

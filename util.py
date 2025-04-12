@@ -382,26 +382,52 @@ def calculate_labor_cost(daily_rate=None, num_days=None, num_employees=None):
         "total_labor_cost": round(total_labor_cost, 2),
     }
 
-def calculate_total_costs(fence_details, material_prices, pricing_strategy="Master Halo Pricing", daily_rate=None, num_days=None, num_employees=None):
+def calculate_total_costs(
+    fence_details,
+    material_prices,
+    pricing_strategy="Master Halo Pricing",
+    daily_rate=None,
+    num_days=None,
+    num_employees=None,
+    dirt_complexity="soft",
+    grade_of_scope_complexity=0.0
+):
     materials_needed = fence_details["materials_needed"]
     height = fence_details.get("height")
     top_rail = fence_details.get("option_d", "No").lower() != "no"
     linear_feet = fence_details.get("linear_feet")
 
+    # === Material cost calculation
     detailed_material_costs, material_total = calculate_material_costs(
         materials_needed, material_prices, pricing_strategy, height, top_rail
     )
 
-    labor_costs = calculate_labor_cost(daily_rate, num_days, num_employees)
+    # === Complexity score calculations
+    dirt_scores = {
+        "soft": 1.0,
+        "hard": 1.5,
+        "core drill": 1.8,
+        "jack hammer": 2.0
+    }
+    dirt_score = dirt_scores.get(str(dirt_complexity).lower(), 1.0)
+    scope_score = calculate_scope_complexity_score(grade_of_scope_complexity)
 
+    # === Adjust number of days using both complexity scores
+    adjusted_days = num_days * dirt_score * scope_score if num_days else None
+
+    # === Labor cost calculation
+    labor_costs = calculate_labor_cost(daily_rate, adjusted_days, num_employees)
+
+    # === Taxes & delivery
     tax_rate = 0.072 if pricing_strategy == "Master Halo Pricing" else 0.0825
     delivery_charge = 100.00 if pricing_strategy == "Master Halo Pricing" else 0.00
     material_tax = round(material_total * tax_rate, 2)
 
+    # === Final cost calculation
     subtotal = material_total + material_tax + delivery_charge + labor_costs["total_labor_cost"]
     price_per_linear_foot = round(subtotal / linear_feet, 2) if linear_feet else 0
 
-    # Profit margin breakdown
+    # === Profit margin breakdown
     profit_margins = {}
     for margin in [0.2, 0.3, 0.4, 0.5]:
         revenue = round(subtotal / (1 - margin), 2)
