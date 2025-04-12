@@ -60,7 +60,8 @@ class CostEstimation(BaseModel):
     num_days: int = 5
     num_employees: int = 3
     dirt_complexity: str = "soft"
-    grade_of_scope_complexity: float = 0.0
+    grade_of_slope_complexity: float = 0.0
+    productivity: float = 1.0
 
 class ProposalRequest(BaseModel):
     job_id: str
@@ -132,17 +133,11 @@ def cost_estimation(data: CostEstimation):
         if not fence_details:
             raise HTTPException(status_code=400, detail="Fence details not provided for this job")
 
-        # Calculate complexity scores
-        dirt_scores = {
-            "soft": 1.0,
-            "hard": 1.5,
-            "core drill": 1.8,
-            "jack hammer": 2.0
-        }
-        dirt_score = dirt_scores.get(data.dirt_complexity.strip().lower(), 1.0)
+        # === Validate productivity input
+        if not (0.01 <= data.productivity <= 1.0):
+            raise HTTPException(status_code=400, detail="Productivity must be between 0.01 and 1.0")
 
-        scope_score = util.calculate_scope_complexity_score(data.grade_of_scope_complexity)
-
+        # === Call cost calculation
         total_costs = util.calculate_total_costs(
             fence_details,
             data.material_prices,
@@ -150,8 +145,9 @@ def cost_estimation(data: CostEstimation):
             data.daily_rate,
             data.num_days,
             data.num_employees,
-            dirt_score,
-            scope_score
+            data.dirt_complexity,
+            data.grade_of_slope_complexity,
+            data.productivity  # NEW ARGUMENT
         )
 
         grand_total = round(
@@ -177,6 +173,8 @@ def cost_estimation(data: CostEstimation):
             }
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

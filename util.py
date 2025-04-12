@@ -246,13 +246,13 @@ def save_fence_details(
     height,
     option_d="No",
     dirt_complexity="soft",
-    grade_of_scope_complexity=10.0
+    grade_of_slope_complexity=10.0
 ):
     if job_id not in job_database:
         raise ValueError("Job ID does not exist")
 
     # Calculate both scores
-    scope_score = calculate_scope_complexity_score(grade_of_scope_complexity)
+    slope_score = calculate_slope_complexity_score(grade_of_slope_complexity)
 
     dirt_scores = {
         "soft": 1.0,
@@ -275,8 +275,8 @@ def save_fence_details(
         "option_d": option_d,
         "dirt_complexity": dirt_complexity,
         "dirt_complexity_score": dirt_score,
-        "grade_of_scope_complexity": grade_of_scope_complexity,
-        "scope_complexity_score": scope_score,
+        "grade_of_slope_complexity": grade_of_slope_complexity,
+        "slope_complexity_score": slope_score,
         "materials_needed": materials_needed,
     }
 
@@ -390,7 +390,8 @@ def calculate_total_costs(
     num_days=None,
     num_employees=None,
     dirt_complexity="soft",
-    grade_of_scope_complexity=0.0
+    grade_of_slope_complexity=0.0,
+    productivity=1.0  # NEW
 ):
     materials_needed = fence_details["materials_needed"]
     height = fence_details.get("height")
@@ -410,10 +411,13 @@ def calculate_total_costs(
         "jack hammer": 2.0
     }
     dirt_score = dirt_scores.get(str(dirt_complexity).lower(), 1.0)
-    scope_score = calculate_scope_complexity_score(grade_of_scope_complexity)
+    slope_score = calculate_slope_complexity_score(grade_of_slope_complexity)
 
-    # === Adjust number of days using both complexity scores
-    adjusted_days = num_days * dirt_score * scope_score if num_days else None
+    # === Adjust number of days with complexity and productivity
+    if num_days and productivity > 0:
+        adjusted_days = (num_days * dirt_score * slope_score) / productivity
+    else:
+        adjusted_days = num_days  # fallback
 
     # === Labor cost calculation
     labor_costs = calculate_labor_cost(daily_rate, adjusted_days, num_employees)
@@ -450,7 +454,8 @@ def calculate_total_costs(
         "profit_margins": profit_margins
     }
 
-def calculate_scope_complexity_score(percentage: float) -> float:
+
+def calculate_slope_complexity_score(percentage: float) -> float:
     # Clamp to 10–45%
     percentage = max(10, min(45, percentage))
     # Linear interpolation between 10% → 1.2 and 45% → 2.0
