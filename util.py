@@ -199,7 +199,7 @@ fence_specialties_pricing = {
         "bags_of_concrete": {"unit_size": 1, "unit_price": 2.98},
         "cans_of_spray_paint": {"unit_size": 1, "unit_price": 5.98},
     },
-    (4, False): {
+    ("4", False): {
         "chain_link": {"unit_size": 50, "unit_price": 133.50},
         "terminal_posts": {"unit_size": 1, "unit_price": 38.00},
         "line_posts": {"unit_size": 1, "unit_price": 32.00},
@@ -461,3 +461,37 @@ def calculate_slope_complexity_score(percentage: float) -> float:
     percentage = max(10, min(45, percentage))
     # Linear interpolation between 10% → 1.2 and 45% → 2.0
     return round(1.2 + (percentage - 10) * ((2.0 - 1.2) / (45 - 10)), 3)
+
+def generate_labor_cost_options(
+    linear_feet,
+    daily_rate,
+    dirt_complexity="soft",
+    grade_of_slope_complexity=0.0,
+    productivity=1.0
+):
+    if not linear_feet or not productivity or productivity <= 0:
+        raise ValueError("Missing or invalid inputs for labor cost generation")
+
+    # Convert dirt and slope to scores
+    dirt_scores = {
+        "soft": 1.0,
+        "hard": 1.5,
+        "core drill": 1.8,
+        "jack hammer": 2.0
+    }
+    dirt_score = dirt_scores.get(str(dirt_complexity).lower(), 1.0)
+    slope_score = calculate_slope_complexity_score(grade_of_slope_complexity)
+
+    results = []
+    for crew_size in range(3, 16, 3):
+        adjusted_days = round(
+            (linear_feet * 60 / 22 * (slope_score + dirt_score - 1)) / (60 * productivity * crew_size * 6), 2
+        )
+        total_cost = round(daily_rate * adjusted_days * crew_size, 2)
+        results.append({
+            "crew_size": crew_size,
+            "days_required": adjusted_days,
+            "total_labor_cost": total_cost
+        })
+
+    return results

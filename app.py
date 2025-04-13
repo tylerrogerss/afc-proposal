@@ -137,7 +137,7 @@ def cost_estimation(data: CostEstimation):
         if not (0.01 <= data.productivity <= 1.0):
             raise HTTPException(status_code=400, detail="Productivity must be between 0.01 and 1.0")
 
-        # === Call cost calculation
+        # === Call main cost calculation
         total_costs = util.calculate_total_costs(
             fence_details,
             data.material_prices,
@@ -147,7 +147,7 @@ def cost_estimation(data: CostEstimation):
             data.num_employees,
             data.dirt_complexity,
             data.grade_of_slope_complexity,
-            data.productivity  # NEW ARGUMENT
+            data.productivity
         )
 
         grand_total = round(
@@ -155,6 +155,15 @@ def cost_estimation(data: CostEstimation):
             total_costs["material_tax"] +
             total_costs["delivery_charge"] +
             total_costs["labor_costs"]["total_labor_cost"], 2
+        )
+
+        # === Generate dynamic labor cost options
+        labor_cost_options = util.generate_labor_cost_options(
+            linear_feet=fence_details.get("linear_feet"),
+            daily_rate=data.daily_rate,
+            dirt_complexity=data.dirt_complexity,
+            grade_of_slope_complexity=data.grade_of_slope_complexity,
+            productivity=data.productivity
         )
 
         return {
@@ -169,7 +178,8 @@ def cost_estimation(data: CostEstimation):
                 "delivery_charge": total_costs["delivery_charge"],
                 "labor_costs": total_costs["labor_costs"],
                 "total_cost": grand_total,
-                "profit_margins": total_costs["profit_margins"]
+                "profit_margins": total_costs["profit_margins"],
+                "labor_cost_options": labor_cost_options  # NEW
             }
         }
 
