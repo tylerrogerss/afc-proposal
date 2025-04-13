@@ -487,11 +487,9 @@ def generate_labor_cost_options(
         adjusted_days = round(
             (linear_feet * 60 / 22 * (slope_score + dirt_score - 1)) / (60 * productivity * crew_size * 6), 2
         )
-        total_cost = round(daily_rate * adjusted_days * crew_size, 2)
         results.append({
             "crew_size": crew_size,
-            "days_required": adjusted_days,
-            "total_labor_cost": total_cost
+            "days_required": adjusted_days
         })
 
     return results
