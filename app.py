@@ -1,28 +1,37 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
+from datetime import datetime
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.utils import ImageReader
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import Paragraph
-from reportlab.lib import colors
-from reportlab.lib.units import inch
-from reportlab.platypus import Frame
-from reportlab.platypus import Paragraph
-from reportlab.pdfgen import canvas
+from reportlab.platypus import Paragraph, Frame
+from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.enums import TA_LEFT
-from datetime import datetime
+from reportlab.lib import colors
 from io import BytesIO
 from pypdf import PdfReader, PdfWriter
+from typing import Union
 import os
-import util
+from fastapi import Body
+from models import ChainLinkDetails, VinylDetails, WoodDetails, SPWroughtIronDetails
 
+import util
+from models import (
+    ChainLinkDetails,
+    VinylDetails,
+    WoodDetails,
+    SPWroughtIronDetails,
+    JobDetails,
+    Notes,
+    CostEstimation,
+    ProposalRequest,
+    JobIDRequest,
+)
 
 app = FastAPI()
 
-# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -30,44 +39,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-class JobDetails(BaseModel):
-    proposal_to: str
-    phone: str
-    email: str
-    job_address: str
-    job_name: str
-    notes: str = ""
-
-class FenceDetails(BaseModel):
-    job_id: str
-    fence_type: str
-    linear_feet: float
-    corner_posts: int
-    end_posts: int
-    height: int
-    option_d: str = "No"
-
-class Notes(BaseModel):
-    job_id: str
-    notes: str
-
-class CostEstimation(BaseModel):
-    job_id: str
-    pricing_strategy: str = "Master Halco Pricing"
-    material_prices: dict = {}
-    daily_rate: float = 150.0
-    num_days: int = None
-    num_employees: int = 3
-    dirt_complexity: str = "soft"
-    grade_of_slope_complexity: float = 0.0
-    productivity: float = 1.0
-
-class ProposalRequest(BaseModel):
-    job_id: str
-
-class JobIDRequest(BaseModel):
-    job_id: str
 
 @app.get("/")
 def hello_world():
@@ -89,27 +60,64 @@ def submit_job_details(details: JobDetails):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/new_bid/fence_details")
-def submit_fence_details(details: FenceDetails):
+def submit_fence_details(details: dict = Body(...)):
     try:
-        # Save fence details and compute materials
-        materials_needed = util.save_fence_details(
-            job_id=details.job_id,
-            fence_type=details.fence_type,
-            linear_feet=details.linear_feet,
-            corner_posts=details.corner_posts,
-            end_posts=details.end_posts,
-            height=details.height,
-            option_d=details.option_d
-        )
+        fence_type = details.get("fence_type", "").lower()
+        job_id = details.get("job_id")
+
+        if not job_id:
+            raise HTTPException(status_code=400, detail="Missing job_id")
+
+        if fence_type == "chain link":
+            validated = ChainLinkDetails(**details)
+            materials = util.calculate_materials_chain_link(
+                lf=validated.linear_feet,
+                cp=validated.corner_posts,
+                ep=validated.end_posts,
+                height=validated.height,
+                top_rail=validated.top_rail
+            )
+
+        elif fence_type == "vinyl":
+            validated = VinylDetails(**details)
+            materials = util.calculate_materials_vinyl(
+                lf=validated.linear_feet,
+                cp=validated.corner_posts,
+                ep=validated.end_posts,
+                height=validated.height,
+                with_chain_link=validated.with_chain_link
+            )
+
+        elif fence_type == "wood":
+            validated = WoodDetails(**details)
+            materials = util.calculate_materials_wood(
+                lf=validated.linear_feet,
+                style=validated.style,
+                bob=validated.bob,
+                height=validated.height
+            )
+
+        elif fence_type == "sp wrought iron":
+            validated = SPWroughtIronDetails(**details)
+            materials = util.calculate_materials_sp_wrought_iron(
+                lf=validated.linear_feet,
+                height=validated.height
+            )
+
+        else:
+            raise HTTPException(status_code=400, detail=f"Unsupported fence type: {fence_type}")
+
+        util.job_database[job_id]["fence_details"] = {
+            **details,
+            "materials_needed": materials
+        }
 
         return {
             "message": "Fence details saved successfully",
-            "job_id": details.job_id,
-            "materials_needed": materials_needed
+            "job_id": job_id,
+            "materials_needed": materials
         }
 
-    except ValueError as ve:
-        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -133,21 +141,14 @@ def cost_estimation(data: CostEstimation):
         if not fence_details:
             raise HTTPException(status_code=400, detail="Fence details not provided for this job")
 
-        # === Validate productivity input
-        if not (0.01 <= data.productivity <= 1.0):
-            raise HTTPException(status_code=400, detail="Productivity must be between 0.01 and 1.0")
-
-        # === Call main cost calculation
         total_costs = util.calculate_total_costs(
-            fence_details,
-            data.material_prices,
-            data.pricing_strategy,
-            data.daily_rate,
-            data.num_days,
-            data.num_employees,
-            data.dirt_complexity,
-            data.grade_of_slope_complexity,
-            data.productivity
+            fence_details=fence_details,
+            material_prices=data.material_prices,
+            pricing_strategy=data.pricing_strategy,
+            daily_rate=data.daily_rate,
+            num_employees=data.num_employees,
+            dirt_complexity=data.dirt_complexity,
+            grade_of_slope_complexity=data.grade_of_slope_complexity
         )
 
         grand_total = round(
@@ -157,13 +158,10 @@ def cost_estimation(data: CostEstimation):
             total_costs["labor_costs"]["total_labor_cost"], 2
         )
 
-        # === Generate dynamic labor cost options
-        labor_cost_options = util.generate_labor_cost_options(
+        labor_duration_options = util.generate_labor_duration_options(
             linear_feet=fence_details.get("linear_feet"),
-            daily_rate=data.daily_rate,
-            dirt_complexity=data.dirt_complexity,
-            grade_of_slope_complexity=data.grade_of_slope_complexity,
-            productivity=data.productivity
+            dirt_complexity=util.dirt_scores.get(data.dirt_complexity.lower(), 1.0),
+            grade_of_slope_complexity=util.calculate_slope_complexity_score(data.grade_of_slope_complexity)
         )
 
         return {
@@ -179,14 +177,24 @@ def cost_estimation(data: CostEstimation):
                 "labor_costs": total_costs["labor_costs"],
                 "total_cost": grand_total,
                 "profit_margins": total_costs["profit_margins"],
-                "labor_cost_options": labor_cost_options  # NEW
+                "labor_duration_options": labor_duration_options
             }
         }
-
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+from fastapi import Body, HTTPException
+from fastapi.responses import FileResponse
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
+from reportlab.platypus import Paragraph, Frame
+from reportlab.lib.styles import getSampleStyleSheet
+from io import BytesIO
+import os
+import util
 
 @app.post("/generate_proposal")
 def generate_proposal(data: ProposalRequest):
@@ -194,73 +202,47 @@ def generate_proposal(data: ProposalRequest):
 
     if job_id not in util.job_database:
         raise HTTPException(status_code=404, detail="Job ID not found.")
-    job = util.job_database[job_id]
-    first_name = job.get("proposal_to", "").split()[0]
 
-    # Create PDF in memory
+    job = util.job_database[job_id]
+    first_name = job.get("proposal_to", "").split()[0] if job.get("proposal_to") else "Client"
+
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
 
-    # === Logo
+    # === Logo ===
     logo_path = "american-fence-concepts-logo_sm.webp"
     if os.path.exists(logo_path):
         logo = ImageReader(logo_path)
         logo_width = 180
-        c.drawImage(logo, (width - logo_width) / 2, height - 100, width=logo_width, preserveAspectRatio=True,
-                    mask='auto')
+        c.drawImage(logo, (width - logo_width) / 2, height - 100, width=logo_width, preserveAspectRatio=True, mask='auto')
 
-    # === Company Info (centered)
+    # === Company Info ===
     c.setFont("Helvetica", 10)
     c.drawCentredString(width / 2, height - 110, "2383 Via Rancheros, Fallbrook, CA 92028")
     c.drawCentredString(width / 2, height - 123, "www.americanfenceconcepts.com")
     c.drawCentredString(width / 2, height - 135, "CA LIC #1037833")
 
-    # === Contact Info (left aligned, no indent)
+    # === Contact Info ===
     c.setFont("Helvetica", 11)
-    contact_lines = [
-        "Jon Keys",
-        "760-877-9951",
-        "j.keys@americanfenceconcepts.com",
-        "",
-        "Beau Postal",
-        "949-259-8868",
-        "bpostal@americanfenceconcepts.com"
-    ]
-    y = height - 180
-    for line in contact_lines:
-        c.drawString(50, y, line)
-        y -= 15
+    contact_text = """Jon Keys
+760-877-9951
+j.keys@americanfenceconcepts.com
 
-    # === Job Info (aligned with contact info)
-    job_info = {
-        "Proposal To:": job.get("proposal_to", ""),
-        "Date:": datetime.now().strftime("%B %d, %Y"),
-        "Phone:": job.get("phone", ""),
-        "Email:": job.get("email", ""),
-        "Job Address:": job.get("job_address", ""),
-        "Job Name:": job.get("job_name", "")
-    }
+Beau Postal
+949-259-8868
+bpostal@americanfenceconcepts.com"""
+    contact_obj = c.beginText(50, height - 200)
+    for line in contact_text.splitlines():
+        contact_obj.textLine(line)
+    c.drawText(contact_obj)
 
-    y -= 30  # space between sections
-    for label, value in job_info.items():
-        text = f"{label} {value}"
-        c.setFont("Helvetica-Bold", 10)
-        c.drawString(50, y, label)
-        text_width = c.stringWidth(label, "Helvetica-Bold", 10)
-        c.setFont("Helvetica", 10)
-        c.drawString(50 + text_width + 5, y, value)  # 5px spacing after label
-        y -= 15
-
-    # Greeting and body text
-    first_name = job.get("proposal_to", "").split()[0]
+    # === Greeting Paragraph ===
     styles = getSampleStyleSheet()
     style = styles["Normal"]
     style.fontName = "Helvetica"
     style.fontSize = 12
     style.leading = 16
-    style.leftIndent = 0
-    style.rightIndent = 0
 
     greeting_paragraph = Paragraph(
         f"{first_name},<br/><br/>"
@@ -270,105 +252,25 @@ def generate_proposal(data: ProposalRequest):
         style
     )
 
-    # Drop the paragraph further down the page to avoid overlap
-    # y = height - 480 starts it well below the job info block
-    frame = Frame(50, height - 560, width - 100, 140, showBoundary=0, leftPadding=0, bottomPadding=0, topPadding=0,
-                  rightPadding=0)
+    frame = Frame(
+        x1=50,
+        y1=height - 560,
+        width=width - 100,
+        height=140,
+        showBoundary=0
+    )
     frame.addFromList([greeting_paragraph], c)
 
-    # === Total Cost Bottom-Right
-    try:
-        fence_details = job.get("fence_details")
-        if fence_details:
-            total_costs = util.calculate_total_costs(
-                fence_details,
-                material_prices={},
-                pricing_strategy="Master Halco Pricing",
-                daily_rate=150.0,
-                num_days=5,
-                num_employees=3
-            )
-            grand_total = round(
-                total_costs["material_total"] +
-                total_costs["material_tax"] +
-                total_costs["delivery_charge"] +
-                total_costs["labor_costs"]["total_labor_cost"], 2
-            )
-            formatted_total = "${:,.2f}".format(grand_total)
-            c.setFont("Helvetica-Bold", 12)
-            c.drawRightString(width - 50, 60, f"Total: {formatted_total}")
-    except Exception as e:
-        print(f"Failed to calculate total cost for PDF: {e}")
-
     c.showPage()
     c.save()
     buffer.seek(0)
 
-    # Save Page 1
-    page1_path = f"page1_{job_id}.pdf"
-    with open(page1_path, "wb") as f:
-        f.write(buffer.read())
-
-        # Combine with second page
-    writer = PdfWriter()
-    writer.append(PdfReader(page1_path))
-
-    pg2_path = "afc-pro-pg2.pdf"
-    if os.path.exists(pg2_path):
-        writer.append(PdfReader(pg2_path))
-    else:
-        raise HTTPException(status_code=500, detail="Second page template not found.")
-
-    final_path = f"proposal_{job_id}.pdf"
-    with open(final_path, "wb") as f:
-        writer.write(f)
-
-    return FileResponse(final_path, filename="AFC_Proposal.pdf", media_type="application/pdf")
-
-@app.post("/generate_materials_list")
-def generate_materials_list(request: JobIDRequest):
-    job_id = request.job_id
-
-    if job_id not in util.job_database:
-        raise HTTPException(status_code=404, detail="Job ID not found.")
-
-    fence_details = util.job_database[job_id].get("fence_details")
-    if not fence_details:
-        raise HTTPException(status_code=400, detail="Fence details not found.")
-
-    materials = fence_details.get("materials_needed")
-    if not materials:
-        raise HTTPException(status_code=400, detail="Materials not calculated.")
-
-    # Create PDF in memory
-    buffer = BytesIO()
-    c = canvas.Canvas(buffer, pagesize=letter)
-    width, height = letter
-
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(50, height - 50, "📦 Materials List")
-
-    c.setFont("Helvetica-Bold", 12)
-    y = height - 80
-    c.drawString(50, y, "Material")
-    c.drawString(250, y, "Quantity")
-    y -= 20
-
-    c.setFont("Helvetica", 11)
-    for material, quantity in materials.items():
-        c.drawString(50, y, material)
-        c.drawString(250, y, str(quantity))
-        y -= 18
-        if y < 50:
-            c.showPage()
-            y = height - 50
-
-    c.showPage()
-    c.save()
-    buffer.seek(0)
-
-    output_path = f"materials_list_{job_id}.pdf"
+    output_path = f"proposal_{job_id}.pdf"
     with open(output_path, "wb") as f:
         f.write(buffer.read())
 
-    return FileResponse(output_path, filename="Materials_List.pdf", media_type="application/pdf")
+    return FileResponse(output_path, filename="AFC_Proposal.pdf", media_type="application/pdf")
+
+@app.post("/generate_materials_list")
+def generate_materials_list(request: JobIDRequest):
+    return util.generate_materials_list_pdf(request.job_id)
