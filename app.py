@@ -121,6 +121,39 @@ def submit_fence_details(details: dict = Body(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.post("/new_bid/material_costs")
+def get_material_costs(data: CostEstimation):
+    if data.job_id not in util.job_database:
+        raise HTTPException(status_code=404, detail="Job ID not found.")
+
+    fence_details = util.job_database[data.job_id].get("fence_details")
+    if not fence_details:
+        raise HTTPException(status_code=400, detail="Fence details not found for this job.")
+
+    height = fence_details.get("height")
+    top_rail = fence_details.get("top_rail", False)
+    if isinstance(top_rail, str):
+        top_rail = top_rail.lower() == "true"
+
+    materials_needed = fence_details.get("materials_needed", {})
+    if not materials_needed:
+        raise HTTPException(status_code=400, detail="No materials needed found in fence details.")
+
+    detailed_costs, material_total = util.calculate_material_costs(
+        materials_needed,
+        data.material_prices,
+        data.pricing_strategy,
+        height,
+        top_rail
+    )
+
+    return {
+        "material_total": material_total,
+        "detailed_costs": detailed_costs
+    }
+
+
 @app.post("/new_bid/add_notes")
 def add_notes(note_data: Notes):
     try:
