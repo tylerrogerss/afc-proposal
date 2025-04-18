@@ -607,25 +607,42 @@ def generate_labor_duration_options(
     panel_length_ft: float = 8.0,
     work_hours_per_day: float = 6.0,
     dirt_complexity: float = 1.0,
-    grade_of_slope_complexity: float = 1.0
+    grade_of_slope_complexity: float = 1.0,
+    productivity: float = 1.0  # <-- new parameter
 ) -> list[dict]:
     panel_install_time_hr = panel_install_time_min / 60.0
     time_per_linear_foot = panel_install_time_hr / panel_length_ft
     total_hours = linear_feet * time_per_linear_foot
+
     complexity_multiplier = (dirt_complexity + grade_of_slope_complexity) - 1
-    adjusted_hours = total_hours * complexity_multiplier
+    adjusted_hours = (total_hours * complexity_multiplier) / productivity  # <-- updated line
+
+    print("🔍 Labor Estimator Debug:")
+    print(f"Linear Feet: {linear_feet}")
+    print(f"Panel Install Time (min): {panel_install_time_min}")
+    print(f"Panel Length (ft): {panel_length_ft}")
+    print(f"Time per LF (hr): {time_per_linear_foot}")
+    print(f"Total Raw Labor Hours: {total_hours}")
+    print(f"Dirt Complexity: {dirt_complexity}")
+    print(f"Slope Complexity: {grade_of_slope_complexity}")
+    print(f"Productivity: {productivity}")
+    print(f"Complexity Multiplier: {complexity_multiplier}")
+    print(f"Adjusted Labor Hours: {adjusted_hours}")
 
     options = []
-
     for crew_size in range(3, 16, 3):
         adjusted_crew_hours = adjusted_hours / crew_size
         estimated_days = adjusted_crew_hours / work_hours_per_day
+
+        print(f"Crew Size: {crew_size}, Estimated Days: {estimated_days}")
+
         options.append({
             "crew_size": crew_size,
             "estimated_days": round(estimated_days, 6)
         })
 
     return options
+
 
 
 # === Dirt Complexity Lookup ===
@@ -641,11 +658,12 @@ dirt_scores = {
 def calculate_total_costs(
     fence_details,
     material_prices,
-    pricing_strategy="Master Halo Pricing",
-    daily_rate=None,
-    num_employees=3,
-    dirt_complexity="soft",
-    grade_of_slope_complexity=0.0
+    pricing_strategy,
+    daily_rate,
+    num_employees,
+    dirt_complexity,
+    grade_of_slope_complexity,
+    productivity=1.0
 ):
     materials_needed = fence_details["materials_needed"]
     height = fence_details.get("height")
@@ -674,7 +692,8 @@ def calculate_total_costs(
     labor_duration_options = generate_labor_duration_options(
         linear_feet=linear_feet,
         dirt_complexity=dirt_score,
-        grade_of_slope_complexity=slope_score
+        grade_of_slope_complexity=slope_score,
+        productivity=productivity  # ✅ Passed in here too
     )
 
     # Taxes & delivery
@@ -710,10 +729,8 @@ def calculate_total_costs(
         "profit_margins": profit_margins
     }
 
-
 def calculate_slope_complexity_score(percentage: float) -> float:
-    # Clamp to 10–45%
-    percentage = max(10, min(45, percentage))
-    # Linear interpolation between 10% → 1.2 and 45% → 2.0
+    if percentage <= 0:
+        return 1.0
+    percentage = min(45, percentage)
     return round(1.2 + (percentage - 10) * ((2.0 - 1.2) / (45 - 10)), 3)
-

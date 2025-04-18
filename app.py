@@ -194,7 +194,8 @@ def cost_estimation(data: CostEstimation):
         labor_duration_options = util.generate_labor_duration_options(
             linear_feet=fence_details.get("linear_feet"),
             dirt_complexity=util.dirt_scores.get(data.dirt_complexity.lower(), 1.0),
-            grade_of_slope_complexity=util.calculate_slope_complexity_score(data.grade_of_slope_complexity)
+            grade_of_slope_complexity=util.calculate_slope_complexity_score(data.grade_of_slope_complexity),
+            productivity=data.productivity  # ✅ added here
         )
 
         return {
@@ -213,6 +214,7 @@ def cost_estimation(data: CostEstimation):
                 "labor_duration_options": labor_duration_options
             }
         }
+
     except HTTPException:
         raise
     except Exception as e:
