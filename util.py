@@ -665,57 +665,99 @@ def calculate_total_costs(
     grade_of_slope_complexity,
     productivity=1.0
 ):
-    materials_needed = fence_details["materials_needed"]
-    height = fence_details.get("height")
-    top_rail = fence_details.get("top_rail", False)
-    if isinstance(top_rail, str):
-        top_rail = top_rail.lower() == "true"
-    linear_feet = fence_details.get("linear_feet")
+    print("📊 Starting calculate_total_costs()")
 
-    detailed_material_costs, material_total = calculate_material_costs(
-        materials_needed, material_prices, pricing_strategy, height, top_rail
-    )
+    try:
+        materials_needed = fence_details["materials_needed"]
+        height = fence_details.get("height")
+        top_rail = fence_details.get("top_rail", False)
+        if isinstance(top_rail, str):
+            top_rail = top_rail.lower() == "true"
+        linear_feet = fence_details.get("linear_feet")
 
-    # Scores
-    dirt_score = dirt_scores.get(str(dirt_complexity).lower(), 1.0)
-    slope_score = calculate_slope_complexity_score(grade_of_slope_complexity)
+        print("✅ Fence Details:")
+        print("  materials_needed:", materials_needed)
+        print("  height:", height)
+        print("  top_rail:", top_rail)
+        print("  linear_feet:", linear_feet)
+    except Exception as e:
+        print("❌ Error unpacking fence_details:", str(e))
+        raise
 
-    # Labor
-    labor_costs = calculate_labor_cost(
-        linear_feet=linear_feet,
-        crew_size=num_employees,
-        daily_rate=daily_rate,
-        dirt_complexity=dirt_score,
-        grade_of_slope_complexity=slope_score
-    )
+    try:
+        detailed_material_costs, material_total = calculate_material_costs(
+            materials_needed, material_prices, pricing_strategy, height, top_rail
+        )
+        print("✅ Material costs calculated")
+    except Exception as e:
+        print("❌ Error in calculate_material_costs:", str(e))
+        raise
 
-    labor_duration_options = generate_labor_duration_options(
-        linear_feet=linear_feet,
-        dirt_complexity=dirt_score,
-        grade_of_slope_complexity=slope_score,
-        productivity=productivity  # ✅ Passed in here too
-    )
+    try:
+        dirt_score = dirt_scores.get(str(dirt_complexity).lower(), 1.0)
+        slope_score = calculate_slope_complexity_score(grade_of_slope_complexity)
+        print("✅ Complexity Scores:")
+        print("  dirt_score:", dirt_score)
+        print("  slope_score:", slope_score)
+    except Exception as e:
+        print("❌ Error calculating complexity scores:", str(e))
+        raise
 
-    # Taxes & delivery
-    tax_rate = 0.072 if pricing_strategy == "Master Halo Pricing" else 0.0825
-    delivery_charge = 100.00 if pricing_strategy == "Master Halo Pricing" else 0.00
-    material_tax = round(material_total * tax_rate, 2)
+    try:
+        labor_costs = calculate_labor_cost(
+            linear_feet=linear_feet,
+            crew_size=num_employees,
+            daily_rate=daily_rate,
+            dirt_complexity=dirt_score,
+            grade_of_slope_complexity=slope_score
+        )
+        print("✅ Labor cost calculated")
+    except Exception as e:
+        print("❌ Error in calculate_labor_cost:", str(e))
+        raise
 
-    # Totals
-    subtotal = material_total + material_tax + delivery_charge + labor_costs["total_labor_cost"]
-    price_per_linear_foot = round(subtotal / linear_feet, 2) if linear_feet else 0
+    try:
+        labor_duration_options = generate_labor_duration_options(
+            linear_feet=linear_feet,
+            dirt_complexity=dirt_score,
+            grade_of_slope_complexity=slope_score,
+            productivity=productivity
+        )
+        print("✅ Labor duration options calculated")
+    except Exception as e:
+        print("❌ Error in generate_labor_duration_options:", str(e))
+        raise
 
-    # Profit
-    profit_margins = {}
-    for margin in [0.2, 0.3, 0.4, 0.5]:
-        revenue = round(subtotal / (1 - margin), 2)
-        profit = round(revenue - subtotal, 2)
-        price_per_foot = round(revenue / linear_feet, 2) if linear_feet else 0
-        profit_margins[f"{int(margin * 100)}%"] = {
-            "revenue": revenue,
-            "profit": profit,
-            "price_per_linear_foot": price_per_foot
-        }
+    try:
+        tax_rate = 0.072 if pricing_strategy == "Master Halo Pricing" else 0.0825
+        delivery_charge = 100.00 if pricing_strategy == "Master Halo Pricing" else 0.00
+        material_tax = round(material_total * tax_rate, 2)
+
+        subtotal = material_total + material_tax + delivery_charge + labor_costs["total_labor_cost"]
+        price_per_linear_foot = round(subtotal / linear_feet, 2) if linear_feet else 0
+
+        print("✅ Totals calculated")
+    except Exception as e:
+        print("❌ Error calculating totals:", str(e))
+        raise
+
+    try:
+        profit_margins = {}
+        for margin in [0.2, 0.3, 0.4, 0.5]:
+            revenue = round(subtotal / (1 - margin), 2)
+            profit = round(revenue - subtotal, 2)
+            price_per_foot = round(revenue / linear_feet, 2) if linear_feet else 0
+            profit_margins[f"{int(margin * 100)}%"] = {
+                "revenue": revenue,
+                "profit": profit,
+                "price_per_linear_foot": price_per_foot
+            }
+        print("✅ Profit margins calculated")
+    except Exception as e:
+        print("❌ Error calculating profit margins:", str(e))
+        raise
+
+    print("✅ Finished calculate_total_costs()\n")
 
     return {
         "materials_needed": materials_needed,
