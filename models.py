@@ -67,6 +67,7 @@ class CostEstimation(BaseModel):
     num_employees: int = 3
     dirt_complexity: str = "soft"
     grade_of_slope_complexity: float = 0.0
+    productivity: float = 1.0
 
 
 # === Proposal / Materials Generation ===
