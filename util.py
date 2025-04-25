@@ -10,6 +10,46 @@ default_labor_values = {
     "num_employees": 3,
 }
 
+VINYL_PRICING = {
+    4: {
+        "corner_posts": {"unit_size": 1, "unit_price": 18.00},
+        "end_posts": {"unit_size": 1, "unit_price": 18.00},
+        "line_posts": {"unit_size": 1, "unit_price": 18.00},
+        "rails": {"unit_size": 1, "unit_price": 15.50},
+        "post_caps": {"unit_size": 1, "unit_price": 1.29},
+        "screws": {"unit_size": 1, "unit_price": 0.40},
+        "bags_of_concrete": {"unit_size": 1, "unit_price": 2.98},
+    },
+    5: {
+        "corner_posts": {"unit_size": 1, "unit_price": 18.00},
+        "end_posts": {"unit_size": 1, "unit_price": 18.00},
+        "line_posts": {"unit_size": 1, "unit_price": 18.00},
+        "rails": {"unit_size": 1, "unit_price": 15.50},
+        "post_caps": {"unit_size": 1, "unit_price": 1.29},
+        "screws": {"unit_size": 1, "unit_price": 0.40},
+        "bags_of_concrete": {"unit_size": 1, "unit_price": 2.98},
+    }
+}
+
+VINYL_CHAINLINK_PRICING = {
+    5: {
+        "corner_posts": {"unit_size": 1, "unit_price": 18.00},
+        "end_posts": {"unit_size": 1, "unit_price": 18.00},
+        "line_posts": {"unit_size": 1, "unit_price": 18.00},
+        "rails_16ft": {"unit_size": 1, "unit_price": 15.50},
+        "post_caps": {"unit_size": 1, "unit_price": 1.29},
+        "chain_link_roll_50ft": {"unit_size": 50, "unit_price": 133.50},
+        "tension_bars_5ft": {"unit_size": 1, "unit_price": 8.25},
+        "tension_wire": {"unit_size": 1250, "unit_price": 77.00},
+        "hog_rings": {"unit_size": 100, "unit_price": 4.73},
+        "screws_big": {"unit_size": 100, "unit_price": 24.59},
+        "screws_small": {"unit_size": 100, "unit_price": 24.59},
+        "steel_clips": {"unit_size": 100, "unit_price": 35.50},
+        "concrete_bags": {"unit_size": 1, "unit_price": 2.98},
+    }
+}
+
+
 # Master Halco pricing unit sizes and unit prices
 master_halco_pricing = {
     # -------------------- CHAIN LINK --------------------
@@ -514,13 +554,49 @@ def add_notes_to_job(job_id, notes):
     job_database[job_id]["notes"] = notes
 
 def calculate_material_costs(materials, custom_prices=None, pricing_strategy=None, height=None, top_rail=True):
+    import math
 
     custom_prices = custom_prices or {}
 
+    fence_type = materials.get("fence_type", "").lower()
+
+    # === MASTER HALCO VINYL PRICING ===
+    if pricing_strategy == "Master Halco Pricing" and fence_type == "vinyl":
+        vinyl_height = int(height)
+        with_chain_link = materials.get("with_chain_link", False)
+
+        pricing_dict = VINYL_CHAINLINK_PRICING if with_chain_link else VINYL_PRICING
+        pricing = pricing_dict.get(vinyl_height, {})
+
+        merged_prices = {k: v["unit_price"] for k, v in pricing.items()}
+        unit_sizes = {k: v["unit_size"] for k, v in pricing.items()}
+        merged_prices.update(custom_prices)
+
+        detailed_costs = {}
+        total_cost = 0
+
+        for material, quantity in materials.items():
+            if material in merged_prices:
+                unit_size = unit_sizes.get(material, 1)
+                order_size = math.ceil(quantity / unit_size)
+                unit_price = round(merged_prices.get(material, 0), 2)
+                material_total = round(order_size * unit_price, 2)
+                detailed_costs[material] = {
+                    "quantity": quantity,
+                    "unit_size": unit_size,
+                    "order_size": order_size,
+                    "unit_price": unit_price,
+                    "total_cost": material_total
+                }
+                total_cost += material_total
+
+        return detailed_costs, round(total_cost, 2)
+
+    # === FALLBACK (CHAIN LINK, OTHERS) ===
     if pricing_strategy in pricing_tables:
-        # Ensure correct key types for lookup
         height_key = str(height)
         top_rail_key = bool(top_rail)
+
         price_table = pricing_tables[pricing_strategy].get((height_key, top_rail_key), {})
         merged_prices = {k: v["unit_price"] for k, v in price_table.items()}
         unit_sizes = {k: v["unit_size"] for k, v in price_table.items()}
@@ -549,6 +625,7 @@ def calculate_material_costs(materials, custom_prices=None, pricing_strategy=Non
         total_cost += material_total
 
     return detailed_costs, round(total_cost, 2)
+
 
 # === Labor Duration (num_days) ===
 def calculate_num_days(
@@ -776,3 +853,4 @@ def calculate_slope_complexity_score(percentage: float) -> float:
         return 1.0
     percentage = min(45, percentage)
     return round(1.2 + (percentage - 10) * ((2.0 - 1.2) / (45 - 10)), 3)
+

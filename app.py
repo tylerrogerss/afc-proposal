@@ -225,8 +225,9 @@ from fastapi.responses import FileResponse
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
-from reportlab.platypus import Paragraph, Frame
+from reportlab.platypus import Paragraph, Frame, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib import colors
 from io import BytesIO
 import os
 import util
@@ -301,11 +302,178 @@ bpostal@americanfenceconcepts.com"""
     buffer.seek(0)
 
     output_path = f"proposal_{job_id}.pdf"
-    with open(output_path, "wb") as f:
-        f.write(buffer.read())
+
+    writer = PdfWriter()
+    writer.append(PdfReader(buffer))  # First page
+    writer.append(PdfReader("afc-pro-pg2.pdf"))  # Second page
+
+    with open(output_path, "wb") as f_out:
+        writer.write(f_out)
 
     return FileResponse(output_path, filename="AFC_Proposal.pdf", media_type="application/pdf")
 
 @app.post("/generate_materials_list")
 def generate_materials_list(request: JobIDRequest):
-    return util.generate_materials_list_pdf(request.job_id)
+    job_id = request.job_id
+
+    if job_id not in util.job_database:
+        raise HTTPException(status_code=404, detail="Job ID not found.")
+
+    fence_details = util.job_database[job_id].get("fence_details")
+    if not fence_details:
+        raise HTTPException(status_code=400, detail="Fence details not found.")
+
+    materials = fence_details.get("materials_needed")
+    if not materials:
+        raise HTTPException(status_code=400, detail="Materials not calculated.")
+
+    # Create PDF in memory
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(50, height - 50, "📦 Materials List")
+
+    c.setFont("Helvetica-Bold", 12)
+    y = height - 80
+    c.drawString(50, y, "Material")
+    c.drawString(250, y, "Quantity")
+    y -= 20
+
+    c.setFont("Helvetica", 11)
+    for material, quantity in materials.items():
+        c.drawString(50, y, material)
+        c.drawString(250, y, str(quantity))
+        y -= 18
+        if y < 50:
+            c.showPage()
+            y = height - 50
+
+    c.showPage()
+    c.save()
+    buffer.seek(0)
+
+    output_path = f"materials_list_{job_id}.pdf"
+    with open(output_path, "wb") as f:
+        f.write(buffer.read())
+
+    return FileResponse(output_path, filename="Materials_List.pdf", media_type="application/pdf")
+
+
+from fastapi import HTTPException
+from fastapi.responses import FileResponse
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.units import inch
+from io import BytesIO
+import os
+import util
+
+from datetime import datetime
+
+@app.post("/generate_job_spec_sheet")
+def generate_job_spec_sheet(data: ProposalRequest):
+    job_id = data.job_id
+
+    if job_id not in util.job_database:
+        raise HTTPException(status_code=404, detail="Job ID not found.")
+
+    job = util.job_database[job_id]
+    fence_details = job.get("fence_details", {})
+    materials_needed = fence_details.get("materials_needed", {})
+
+    proposal_to = job.get("proposal_to", "Client")
+    job_address = job.get("job_address", "Unknown Address")
+    fence_type = fence_details.get("fence_type", "Unknown Type")
+    height = fence_details.get("height", "N/A")
+    top_rail = fence_details.get("top_rail", False)
+    notes = job.get("notes", "")
+    today = datetime.today().strftime("%m/%d/%y")
+
+    # === Job Scope ===
+    scope_parts = [f"{height}' {fence_type}"]
+    if top_rail:
+        scope_parts.append("Top Rail")
+    job_scope = ", ".join(scope_parts)
+
+    # === Notes Section ===
+    notes_text = f"{height}' {fence_type}"
+    if notes:
+        notes_text += f" — {notes}"
+
+    # === Create PDF ===
+    output_path = f"job_spec_sheet_{job_id}.pdf"
+    c = canvas.Canvas(output_path, pagesize=letter)
+    width, height_pt = letter
+
+    x_margin = 50
+    y = height_pt - inch
+
+    # === Title ===
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(x_margin, y, "American Fence Concepts")
+    y -= 20
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(x_margin, y, "Job Specification Sheet")
+    y -= 29
+
+    # === Basic Info ===
+    date_str = datetime.now().strftime("%m/%d/%y")
+    c.setFont("Helvetica", 10)
+    c.drawString(x_margin, y, f"Project Name: {proposal_to} - {fence_type.title()} Fence")
+    y -= 14
+    c.drawString(x_margin, y, f"Client: {proposal_to}")
+    y -= 14
+    c.drawString(x_margin, y, f"Date: {date_str}")
+    y -= 14
+    c.drawString(x_margin, y, f"Address: {job_address}")
+    y -= 20
+
+    # === Job Scope Section ===
+    y -= 14  # reduced space before "Job Scope"
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(x_margin, y, "Job Scope:")
+    y -= 14  # reduced space after "Job Scope"
+    c.setFont("Helvetica", 11)
+
+    # Job Scope Bullets
+    c.drawString(x_margin + 20, y, f"- {height}' High {fence_type.title()}")
+    y -= 14
+    if top_rail:
+        c.drawString(x_margin + 20, y, "- Top Rail")
+        y -= 14
+
+    # === Materials Section ===
+    y -= 30  # More space before materials
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(x_margin, y, "Materials:")
+    y -= 25
+    c.setFont("Helvetica", 11)
+    for item, qty in materials_needed.items():
+        item_formatted = item.replace("_", " ").title()
+        c.drawString(x_margin + 20, y, f"- ({round(qty)}) {item_formatted}")
+        y -= 18
+        if y < 100:
+            c.showPage()
+            y = height_pt - inch
+
+    # === Notes Section ===
+    y -= 30  # Ensure good spacing from last material
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(x_margin, y, "Notes:")
+    y -= 20
+    c.setFont("Helvetica", 11)
+
+    # Always show the base fence type line
+    c.drawString(x_margin + 20, y, f"- {height}' High {fence_type.title()}")
+    y -= 18
+
+    # Only show user-provided notes if available
+    if notes.strip():
+        c.drawString(x_margin + 20, y, f"- {notes.strip()}")
+        y -= 18
+
+    c.save()
+
+    return FileResponse(output_path, filename="AFC_Job_Spec_Sheet.pdf", media_type="application/pdf")
