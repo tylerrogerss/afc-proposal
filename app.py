@@ -297,6 +297,8 @@ bpostal@americanfenceconcepts.com"""
     )
     frame.addFromList([greeting_paragraph], c)
 
+
+
     c.showPage()
     c.save()
     buffer.seek(0)
@@ -365,6 +367,8 @@ from fastapi import HTTPException
 from fastapi.responses import FileResponse
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
+from reportlab.platypus import Table, TableStyle
+from reportlab.lib import colors
 from reportlab.lib.units import inch
 from io import BytesIO
 import os
@@ -419,57 +423,74 @@ def generate_job_spec_sheet(data: ProposalRequest):
     y -= 29
 
     # === Basic Info ===
-    date_str = datetime.now().strftime("%m/%d/%y")
     c.setFont("Helvetica", 10)
     c.drawString(x_margin, y, f"Project Name: {proposal_to} - {fence_type.title()} Fence")
     y -= 14
     c.drawString(x_margin, y, f"Client: {proposal_to}")
     y -= 14
-    c.drawString(x_margin, y, f"Date: {date_str}")
+    c.drawString(x_margin, y, f"Date: {today}")
     y -= 14
     c.drawString(x_margin, y, f"Address: {job_address}")
     y -= 20
 
     # === Job Scope Section ===
-    y -= 14  # reduced space before "Job Scope"
+    y -= 14
     c.setFont("Helvetica-Bold", 11)
     c.drawString(x_margin, y, "Job Scope:")
-    y -= 14  # reduced space after "Job Scope"
+    y -= 14
     c.setFont("Helvetica", 11)
-
-    # Job Scope Bullets
     c.drawString(x_margin + 20, y, f"- {height}' High {fence_type.title()}")
     y -= 14
     if top_rail:
         c.drawString(x_margin + 20, y, "- Top Rail")
         y -= 14
 
-    # === Materials Section ===
-    y -= 30  # More space before materials
+    # === Materials Table Section ===
+    y -= 30
     c.setFont("Helvetica-Bold", 12)
-    c.drawString(x_margin, y, "Materials:")
-    y -= 25
-    c.setFont("Helvetica", 11)
-    for item, qty in materials_needed.items():
-        item_formatted = item.replace("_", " ").title()
-        c.drawString(x_margin + 20, y, f"- ({round(qty)}) {item_formatted}")
-        y -= 18
-        if y < 100:
-            c.showPage()
-            y = height_pt - inch
+    # c.drawString(x_margin, y, "Materials:")
+    y -= 20
+
+    # Build table data
+    table_data = [["Material", "Quantity", "Unit Size", "Order Size"]]
+    for material, details in materials_needed.items():
+        if isinstance(details, dict):  # structured format
+            quantity = round(details.get("quantity", 0))
+            unit_size = round(details.get("unit_size", 1))
+            order_size = round(details.get("order_size", 0))
+        else:  # fallback
+            quantity = round(details)
+            unit_size = 1
+            order_size = quantity
+
+        label = material.replace("_", " ").title()
+        table_data.append([label, quantity, unit_size, order_size])
+
+    table = Table(table_data, colWidths=[180, 80, 80, 80])
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+        ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 0), (-1, -1), 10),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+
+    # Render the table
+    table_height = len(table_data) * 18
+    table.wrapOn(c, width, height)
+    table.drawOn(c, x_margin, y - table_height)
+    y -= table_height + 20
 
     # === Notes Section ===
-    y -= 30  # Ensure good spacing from last material
     c.setFont("Helvetica-Bold", 12)
     c.drawString(x_margin, y, "Notes:")
     y -= 20
     c.setFont("Helvetica", 11)
-
-    # Always show the base fence type line
     c.drawString(x_margin + 20, y, f"- {height}' High {fence_type.title()}")
     y -= 18
-
-    # Only show user-provided notes if available
     if notes.strip():
         c.drawString(x_margin + 20, y, f"- {notes.strip()}")
         y -= 18
