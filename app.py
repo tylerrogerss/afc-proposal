@@ -498,3 +498,126 @@ def generate_job_spec_sheet(data: ProposalRequest):
     c.save()
 
     return FileResponse(output_path, filename="AFC_Job_Spec_Sheet.pdf", media_type="application/pdf")
+
+from fastapi import HTTPException
+from fastapi.responses import FileResponse
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from datetime import datetime
+from io import BytesIO
+import util
+
+@app.post("/generate_internal_summary")
+def generate_internal_summary(data: ProposalRequest):
+    job_id = data.job_id
+
+    if job_id not in util.job_database:
+        raise HTTPException(status_code=404, detail="Job ID not found.")
+
+    job = util.job_database[job_id]
+    fence_details = job.get("fence_details", {})
+    proposal_to = job.get("proposal_to", "Client")
+    linear_feet = fence_details.get("linear_feet", 0)
+    height = fence_details.get("height", "N/A")
+
+    # Cost breakdown
+    material_total = job.get("material_total", 0)
+    material_tax = job.get("material_tax", 0)
+    delivery_charge = job.get("delivery_charge", 0)
+    overhead = job.get("overhead", 0)
+    labor_cost = job.get("labor_cost", 0)
+    total_cost = material_total + material_tax + delivery_charge + overhead + labor_cost
+
+    # Production time estimate
+    estimated_days = job.get("estimated_days", "N/A")
+
+    # Price per linear foot
+    price_per_lf = total_cost / linear_feet if linear_feet else 0
+
+    # Margin calculations
+    def margin_calc(margin_pct):
+        revenue = total_cost / (1 - margin_pct)
+        profit = revenue - total_cost
+        return revenue, profit, revenue / linear_feet if linear_feet else 0
+
+    margins = {
+        "20%": margin_calc(0.20),
+        "30%": margin_calc(0.30),
+        "40%": margin_calc(0.40),
+    }
+
+    # === PDF generation ===
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+    width, height_pt = letter
+    x = 50
+    y = height_pt - 50
+
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(x, y, "Internal Job Summary")
+    y -= 25
+
+    c.setFont("Helvetica", 11)
+    c.drawString(x, y, f"Job ID: {job_id}")
+    y -= 15
+    c.drawString(x, y, f"Client: {proposal_to}")
+    y -= 15
+    c.drawString(x, y, f"Fence Type: {fence_details.get('fence_type', '')} - {height}'")
+    y -= 15
+    c.drawString(x, y, f"Date: {datetime.now().strftime('%m/%d/%y')}")
+    y -= 25
+
+    # === Cost Breakdown ===
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(x, y, "Cost Breakdown:")
+    y -= 18
+    c.setFont("Helvetica", 11)
+
+    c.drawString(x, y, f"Material Cost: ${material_total:,.2f}")
+    y -= 16
+    c.drawString(x, y, f"Material Tax: ${material_tax:,.2f}")
+    y -= 16
+    c.drawString(x, y, f"Delivery Charge: ${delivery_charge:,.2f}")
+    y -= 16
+    c.drawString(x, y, f"Overhead (insurance, fuel, etc.): ${overhead:,.2f}")
+    y -= 16
+    c.drawString(x, y, f"Labor Cost: ${labor_cost:,.2f}")
+    y -= 16
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(x, y, f"Total Job Cost: ${total_cost:,.2f}")
+    y -= 25
+
+    # === Production Info ===
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(x, y, "Production Info:")
+    y -= 18
+    c.setFont("Helvetica", 11)
+    c.drawString(x, y, f"Estimated Production Time: {estimated_days} days")
+    y -= 16
+    c.drawString(x, y, f"Price Per Linear Foot: ${price_per_lf:,.2f}")
+    y -= 25
+
+    # === Margin Breakdown ===
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(x, y, "Margin Projections:")
+    y -= 18
+    c.setFont("Helvetica", 11)
+
+    for label, (revenue, profit, price_per_lf_margin) in margins.items():
+        c.drawString(x + 10, y, f"{label} Margin:")
+        y -= 16
+        c.drawString(x + 30, y, f"Revenue: ${revenue:,.2f}")
+        y -= 16
+        c.drawString(x + 30, y, f"Profit: ${profit:,.2f}")
+        y -= 16
+        c.drawString(x + 30, y, f"Price Per LF: ${price_per_lf_margin:,.2f}")
+        y -= 20
+
+    c.save()
+    buffer.seek(0)
+
+    output_path = f"internal_summary_{job_id}.pdf"
+    with open(output_path, "wb") as f:
+        f.write(buffer.read())
+
+    return FileResponse(output_path, filename="AFC_Internal_Summary.pdf", media_type="application/pdf")
