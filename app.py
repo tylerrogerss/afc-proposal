@@ -398,7 +398,19 @@ def generate_job_spec_sheet(data: ProposalRequest):
 
     job = util.job_database[job_id]
     fence_details = job.get("fence_details", {})
-    materials_needed = fence_details.get("materials_needed", {})
+
+    # ─────── NEW BLOCK ───────
+    # Pull the raw materials dict and re-run your cost logic
+    raw_materials = fence_details.get("materials_needed", {})
+    detailed_costs, _ = util.calculate_material_costs(
+        raw_materials,
+        {},                        # no custom prices
+        "Master Halco Pricing",    # default strategy
+        fence_details.get("height"),
+        fence_details.get("top_rail", False)
+    )
+    materials_needed = detailed_costs
+    # ───────────────────────────
 
     proposal_to = job.get("proposal_to", "Client")
     job_address = job.get("job_address", "Unknown Address")
@@ -408,26 +420,14 @@ def generate_job_spec_sheet(data: ProposalRequest):
     notes = job.get("notes", "")
     today = datetime.today().strftime("%m/%d/%y")
 
-    # === Job Scope ===
-    scope_parts = [f"{height}' {fence_type}"]
-    if top_rail:
-        scope_parts.append("Top Rail")
-    job_scope = ", ".join(scope_parts)
-
-    # === Notes Section ===
-    notes_text = f"{height}' {fence_type}"
-    if notes:
-        notes_text += f" — {notes}"
-
     # === Create PDF ===
     output_path = f"job_spec_sheet_{job_id}.pdf"
     c = canvas.Canvas(output_path, pagesize=letter)
     width, height_pt = letter
-
     x_margin = 50
-    y = height_pt - inch
+    y = height_pt - 72  # 1 inch
 
-    # === Title ===
+    # Title & Basic Info
     c.setFont("Helvetica-Bold", 14)
     c.drawString(x_margin, y, "American Fence Concepts")
     y -= 20
@@ -435,7 +435,6 @@ def generate_job_spec_sheet(data: ProposalRequest):
     c.drawString(x_margin, y, "Job Specification Sheet")
     y -= 29
 
-    # === Basic Info ===
     c.setFont("Helvetica", 10)
     c.drawString(x_margin, y, f"Project Name: {proposal_to} - {fence_type.title()} Fence")
     y -= 14
@@ -446,8 +445,7 @@ def generate_job_spec_sheet(data: ProposalRequest):
     c.drawString(x_margin, y, f"Address: {job_address}")
     y -= 20
 
-    # === Job Scope Section ===
-    y -= 14
+    # Job Scope
     c.setFont("Helvetica-Bold", 11)
     c.drawString(x_margin, y, "Job Scope:")
     y -= 14
@@ -458,46 +456,33 @@ def generate_job_spec_sheet(data: ProposalRequest):
         c.drawString(x_margin + 20, y, "- Top Rail")
         y -= 14
 
-    # === Materials Table Section ===
-    y -= 30
-    c.setFont("Helvetica-Bold", 12)
-    # c.drawString(x_margin, y, "Materials:")
+    # Materials Table
     y -= 20
-
-    # Build table data
     table_data = [["Material", "Quantity", "Unit Size", "Order Size"]]
     for material, details in materials_needed.items():
-        if isinstance(details, dict):  # structured format
-            quantity = round(details.get("quantity", 0))
-            unit_size = round(details.get("unit_size", 1))
-            order_size = round(details.get("order_size", 0))
-        else:  # fallback
-            quantity = round(details)
-            unit_size = 1
-            order_size = quantity
-
         label = material.replace("_", " ").title()
+        quantity  = round(details.get("quantity", 0))
+        unit_size = round(details.get("unit_size", 1))
+        order_size= round(details.get("order_size", 0))
         table_data.append([label, quantity, unit_size, order_size])
 
     table = Table(table_data, colWidths=[180, 80, 80, 80])
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
-        ("ALIGN", (1, 1), (-1, -1), "CENTER"),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-        ("FONTSIZE", (0, 0), (-1, -1), 10),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("TEXTCOLOR",    (0, 0), (-1, 0), colors.black),
+        ("ALIGN",        (1, 1), (-1, -1), "CENTER"),
+        ("FONTNAME",     (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTNAME",     (0, 1), (-1, -1), "Helvetica"),
+        ("FONTSIZE",     (0, 0), (-1, -1), 10),
+        ("GRID",         (0, 0), (-1, -1), 0.5, colors.black),
+        ("BOTTOMPADDING",(0, 0), (-1, -1), 6),
     ]))
-
-    # Render the table
     table_height = len(table_data) * 18
-    table.wrapOn(c, width, height)
+    table.wrapOn(c, width, height_pt)
     table.drawOn(c, x_margin, y - table_height)
     y -= table_height + 20
 
-    # === Notes Section ===
+    # Notes
     c.setFont("Helvetica-Bold", 12)
     c.drawString(x_margin, y, "Notes:")
     y -= 20
@@ -506,10 +491,8 @@ def generate_job_spec_sheet(data: ProposalRequest):
     y -= 18
     if notes.strip():
         c.drawString(x_margin + 20, y, f"- {notes.strip()}")
-        y -= 18
 
     c.save()
-
     return FileResponse(output_path, filename="AFC_Job_Spec_Sheet.pdf", media_type="application/pdf")
 
 from fastapi import HTTPException
