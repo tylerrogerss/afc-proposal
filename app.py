@@ -184,6 +184,19 @@ def cost_estimation(data: CostEstimation):
             grade_of_slope_complexity=data.grade_of_slope_complexity
         )
 
+
+        # ─── Persist cost data for later summary ────────────────────────
+        util.job_database[data.job_id]["costs"] = {
+            "material_total":       total_costs["material_total"],
+            "material_tax":         total_costs["material_tax"],
+            "delivery_charge":      total_costs["delivery_charge"],
+            "labor_costs":          total_costs["labor_costs"],             # contains num_days, total_labor_cost, etc.
+            "price_per_linear_foot": total_costs["price_per_linear_foot"],
+        }
+        util.job_database[data.job_id]["estimated_days"] = total_costs["labor_costs"]["num_days"]
+        # ────────────────────────────────────────────────────────────────
+
+
         grand_total = round(
             total_costs["material_total"] +
             total_costs["material_tax"] +
@@ -521,14 +534,14 @@ def generate_internal_summary(data: ProposalRequest):
     height = fence_details.get("height", "N/A")
 
     # Cost breakdown
-    material_total = job.get("material_total", 0)
-    material_tax = job.get("material_tax", 0)
-    delivery_charge = job.get("delivery_charge", 0)
-    overhead = job.get("overhead", 0)
-    labor_cost = job.get("labor_cost", 0)
-    total_cost = material_total + material_tax + delivery_charge + overhead + labor_cost
+    costs = job.get("costs", {})
+    material_total = costs.get("material_total", 0)
+    material_tax = costs.get("material_tax", 0)
+    delivery_charge = costs.get("delivery_charge", 0)
+    labor_info = costs.get("labor_costs", {})
+    total_labor = labor_info.get("total_labor_cost", 0)
 
-    # Production time estimate
+    total_cost = material_total + material_tax + delivery_charge + total_labor
     estimated_days = job.get("estimated_days", "N/A")
 
     # Price per linear foot
@@ -579,9 +592,8 @@ def generate_internal_summary(data: ProposalRequest):
     y -= 16
     c.drawString(x, y, f"Delivery Charge: ${delivery_charge:,.2f}")
     y -= 16
-    c.drawString(x, y, f"Overhead (insurance, fuel, etc.): ${overhead:,.2f}")
-    y -= 16
-    c.drawString(x, y, f"Labor Cost: ${labor_cost:,.2f}")
+
+    c.drawString(x, y, f"Labor Cost: ${total_labor:,.2f}")
     y -= 16
     c.setFont("Helvetica-Bold", 11)
     c.drawString(x, y, f"Total Job Cost: ${total_cost:,.2f}")
