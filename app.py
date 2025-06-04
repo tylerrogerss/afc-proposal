@@ -611,16 +611,41 @@ def generate_internal_summary(data: ProposalRequest):
     c.setFont("Helvetica-Bold", 12)
     c.drawString(x, y, "Margin Projections:")
     y -= 18
-    c.setFont("Helvetica", 11)
-    for label, (revenue, profit, price_per_lf_margin) in margins.items():
-        c.drawString(x + 10, y, f"{label} Margin:")
-        y -= 16
-        c.drawString(x + 30, y, f"Revenue: ${revenue:,.2f}")
-        y -= 16
-        c.drawString(x + 30, y, f"Profit: ${profit:,.2f}")
-        y -= 16
-        c.drawString(x + 30, y, f"Price Per LF: ${price_per_lf_margin:,.2f}")
-        y -= 20
+
+    # Build the table data: header row + three metric rows
+    header_row = ["Metric", "20%", "30%", "40%", "50%"]
+    revenue_row = ["Revenue"] + [f"${margins[p][0]:,.2f}" for p in ["20%", "30%", "40%", "50%"]]
+    profit_row = ["Profit"] + [f"${margins[p][1]:,.2f}" for p in ["20%", "30%", "40%", "50%"]]
+    price_row = ["Price/LF"] + [f"${margins[p][2]:,.2f}" for p in ["20%", "30%", "40%", "50%"]]
+
+    table_data_margins = [header_row, revenue_row, profit_row, price_row]
+
+    # Create a Table whose first column is labels and next columns are each margin
+    table_margins = Table(table_data_margins, colWidths=[100, 80, 80, 80, 80])
+    table_margins.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+        ("ALIGN", (1, 0), (-1, -1), "CENTER"),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 0), (-1, -1), 10),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+
+    # Determine how much space is needed for this margins‐table
+    available_width = page_width - (2 * x)
+    available_height = y
+    _, table_margin_h = table_margins.wrap(available_width, available_height)
+
+    bottom_margin = 50
+    if table_margin_h + bottom_margin > y:
+        c.showPage()
+        y = page_height - 50
+
+    # Draw the margins table
+    table_margins.drawOn(c, x, y - table_margin_h)
+    y = y - table_margin_h - 20
 
     # === Updated Materials Section ===
 
