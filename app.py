@@ -499,9 +499,23 @@ from fastapi import HTTPException
 from fastapi.responses import FileResponse
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
+from reportlab.platypus import Table, TableStyle
+from reportlab.lib import colors
 from datetime import datetime
 from io import BytesIO
 import util
+
+from io import BytesIO
+from datetime import datetime
+import os
+import subprocess
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from reportlab.platypus import Table, TableStyle
+from reportlab.lib import colors
 
 @app.post("/generate_internal_summary")
 def generate_internal_summary(data: ProposalRequest):
@@ -514,7 +528,7 @@ def generate_internal_summary(data: ProposalRequest):
     fence_details = job.get("fence_details", {})
     proposal_to = job.get("proposal_to", "Client")
     linear_feet = fence_details.get("linear_feet", 0)
-    height = fence_details.get("height", "N/A")
+    height_value = fence_details.get("height", "N/A")
 
     # Cost breakdown
     costs = job.get("costs", {})
@@ -530,7 +544,7 @@ def generate_internal_summary(data: ProposalRequest):
     # Price per linear foot
     price_per_lf = total_cost / linear_feet if linear_feet else 0
 
-    # Margin calculations
+    # Margin calculations (20%, 30%, 40%, 50%)
     def margin_calc(margin_pct):
         revenue = total_cost / (1 - margin_pct)
         profit = revenue - total_cost
@@ -540,49 +554,50 @@ def generate_internal_summary(data: ProposalRequest):
         "20%": margin_calc(0.20),
         "30%": margin_calc(0.30),
         "40%": margin_calc(0.40),
+        "50%": margin_calc(0.50),
     }
 
     # === PDF generation ===
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
-    width, height_pt = letter
+    page_width, page_height = letter
     x = 50
-    y = height_pt - 50
+    y = page_height - 50
 
+    # Title
     c.setFont("Helvetica-Bold", 14)
     c.drawString(x, y, "Internal Job Summary")
     y -= 25
 
+    # Basic Info
     c.setFont("Helvetica", 11)
     c.drawString(x, y, f"Job ID: {job_id}")
     y -= 15
     c.drawString(x, y, f"Client: {proposal_to}")
     y -= 15
-    c.drawString(x, y, f"Fence Type: {fence_details.get('fence_type', '')} - {height}'")
+    c.drawString(x, y, f"Fence Type: {fence_details.get('fence_type', '')} - {height_value}'")
     y -= 15
     c.drawString(x, y, f"Date: {datetime.now().strftime('%m/%d/%y')}")
     y -= 25
 
-    # === Cost Breakdown ===
+    # Cost Breakdown
     c.setFont("Helvetica-Bold", 12)
     c.drawString(x, y, "Cost Breakdown:")
     y -= 18
     c.setFont("Helvetica", 11)
-
     c.drawString(x, y, f"Material Cost: ${material_total:,.2f}")
     y -= 16
     c.drawString(x, y, f"Material Tax: ${material_tax:,.2f}")
     y -= 16
     c.drawString(x, y, f"Delivery Charge: ${delivery_charge:,.2f}")
     y -= 16
-
     c.drawString(x, y, f"Labor Cost: ${total_labor:,.2f}")
     y -= 16
     c.setFont("Helvetica-Bold", 11)
     c.drawString(x, y, f"Total Job Cost: ${total_cost:,.2f}")
     y -= 25
 
-    # === Production Info ===
+    # Production Info
     c.setFont("Helvetica-Bold", 12)
     c.drawString(x, y, "Production Info:")
     y -= 18
@@ -592,12 +607,11 @@ def generate_internal_summary(data: ProposalRequest):
     c.drawString(x, y, f"Price Per Linear Foot: ${price_per_lf:,.2f}")
     y -= 25
 
-    # === Margin Breakdown ===
+    # Margin Projections
     c.setFont("Helvetica-Bold", 12)
     c.drawString(x, y, "Margin Projections:")
     y -= 18
     c.setFont("Helvetica", 11)
-
     for label, (revenue, profit, price_per_lf_margin) in margins.items():
         c.drawString(x + 10, y, f"{label} Margin:")
         y -= 16
@@ -608,11 +622,73 @@ def generate_internal_summary(data: ProposalRequest):
         c.drawString(x + 30, y, f"Price Per LF: ${price_per_lf_margin:,.2f}")
         y -= 20
 
+    # === Updated Materials Section ===
+
+    # Small gap before “Materials” header
+    y -= 10
+
+    # Materials Header
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(x, y, "Materials:")
+    y -= 15  # leave space for the table
+
+    # Build materials table data
+    materials = fence_details.get("materials_needed", {})
+    table_data = [["Material", "Quantity"]]
+    for material, details in materials.items():
+        label = material.replace("_", " ").title()
+        if isinstance(details, dict):
+            qty = round(details.get("quantity", 0))
+        else:
+            qty = round(details)
+        table_data.append([label, qty])
+
+    # Create the Table
+    table = Table(table_data, colWidths=[200, 100])
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+        ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 0), (-1, -1), 10),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+
+    # 1) Determine how much vertical space the table needs
+    available_width = page_width - (2 * x)
+    available_height = y  # space from current y down to bottom
+    table_width, table_height = table.wrap(available_width, available_height)
+
+    # 2) If it doesn’t fit, start a new page and reset y
+    bottom_margin = 50
+    if table_height + bottom_margin > y:
+        c.showPage()
+        y = page_height - 50  # reset y at top
+
+    # 3) Draw the table so its top aligns with the current y
+    table.drawOn(c, x, y - table_height)
+
+    # 4) Move y below the table for any further content
+    y = y - table_height - 20
+
+    # … any other content you might add below …
+
+    # Save PDF into buffer
     c.save()
     buffer.seek(0)
 
+    # Write buffer to a file and return via FileResponse
     output_path = f"internal_summary_{job_id}.pdf"
-    with open(output_path, "wb") as f:
-        f.write(buffer.read())
+    with open(output_path, "wb") as f_out:
+        f_out.write(buffer.read())
 
-    return FileResponse(output_path, filename="AFC_Internal_Summary.pdf", media_type="application/pdf")
+    # (Optional) auto-open on macOS preview:
+    # subprocess.run(["open", output_path])
+
+    return FileResponse(
+        output_path,
+        filename="AFC_Internal_Summary.pdf",
+        media_type="application/pdf"
+    )
