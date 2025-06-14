@@ -648,8 +648,7 @@ def generate_internal_summary(data: InternalSummaryRequest):
 
     table_data_margins = [header_row, revenue_row, profit_row, price_row]
 
-    table_margins = Table(table_data_margins, colWidths=[100] + [80] * len(header_labels))
-    table_margins.setStyle(TableStyle([
+    margin_table_style = [
         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
         ("ALIGN", (1, 0), (-1, -1), "CENTER"),
@@ -658,7 +657,19 @@ def generate_internal_summary(data: InternalSummaryRequest):
         ("FONTSIZE", (0, 0), (-1, -1), 10),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-    ]))
+    ]
+
+    # Highlight selected/custom margin
+    if data.custom_margin is not None:
+        selected_label = f"{int(data.custom_margin * 100)}%"
+        if selected_label in header_labels:
+            col_index = header_labels.index(selected_label) + 1  # +1 because 0 is "Metric"
+            margin_table_style.append(
+                ("BACKGROUND", (col_index, 0), (col_index, -1), colors.lightblue)
+            )
+
+    table_margins = Table(table_data_margins, colWidths=[100] + [80] * len(header_labels))
+    table_margins.setStyle(TableStyle(margin_table_style))
 
     available_width = page_width - (2 * x)
     _, table_margin_h = table_margins.wrap(available_width, y)
