@@ -1,7 +1,7 @@
 # models.py
 
 from pydantic import BaseModel
-from typing import Optional, Dict
+from typing import Optional, Dict, Union
 
 
 # === Job Details ===
@@ -77,3 +77,14 @@ class ProposalRequest(BaseModel):
 
 class JobIDRequest(BaseModel):
     job_id: str
+
+class InternalSummaryRequest(BaseModel):
+    job_id: str
+    daily_rate: Union[float, None] = None
+    crew_size: Union[int, None] = None
+    estimated_days: Union[float, None] = None
+    additional_days: int = 0
+
+
+
+
