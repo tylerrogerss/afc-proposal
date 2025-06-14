@@ -28,6 +28,7 @@ from models import (
     CostEstimation,
     ProposalRequest,
     JobIDRequest,
+    InternalSummaryRequest,
 )
 
 app = FastAPI()
@@ -530,7 +531,7 @@ from reportlab.platypus import Table, TableStyle
 from reportlab.lib import colors
 
 @app.post("/generate_internal_summary")
-def generate_internal_summary(data: ProposalRequest):
+def generate_internal_summary(data: InternalSummaryRequest):
     job_id = data.job_id
 
     if job_id not in util.job_database:
@@ -542,25 +543,23 @@ def generate_internal_summary(data: ProposalRequest):
     linear_feet = fence_details.get("linear_feet", 0)
     height_value = fence_details.get("height", "N/A")
 
-    # Cost breakdown
     costs = job.get("costs", {})
     material_total = costs.get("material_total", 0)
     material_tax = costs.get("material_tax", 0)
     delivery_charge = costs.get("delivery_charge", 0)
     labor_info = costs.get("labor_costs", {})
+
+    # Accept values from frontend (with fallback to defaults)
+    daily_rate = data.daily_rate or labor_info.get("daily_rate") or 0
+    num_workers = data.crew_size or labor_info.get("crew_size") or 0
+
+    estimated_days = data.estimated_days if data.estimated_days is not None else job.get("estimated_days", "N/A")
+    additional_days = data.additional_days or 0
+
     total_labor = labor_info.get("total_labor_cost", 0)
-    # === 1) extract day rate, crew size, and any extra days ===
-    daily_rate = labor_info.get("daily_rate", 0)  # $ per worker/day
-    num_workers = labor_info.get("crew_size", 0)  # or num_employees, etc.
-    additional_days = job.get("additional_days", 0)
-
     total_cost = material_total + material_tax + delivery_charge + total_labor
-    estimated_days = job.get("estimated_days", "N/A")
-
-    # Price per linear foot
     price_per_lf = total_cost / linear_feet if linear_feet else 0
 
-    # Margin calculations (20%, 30%, 40%, 50%)
     def margin_calc(margin_pct):
         revenue = total_cost / (1 - margin_pct)
         profit = revenue - total_cost
@@ -573,19 +572,16 @@ def generate_internal_summary(data: ProposalRequest):
         "50%": margin_calc(0.50),
     }
 
-    # === PDF generation ===
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
     page_width, page_height = letter
     x = 50
     y = page_height - 50
 
-    # Title
     c.setFont("Helvetica-Bold", 14)
     c.drawString(x, y, "Internal Job Summary")
     y -= 25
 
-    # Basic Info
     c.setFont("Helvetica", 11)
     c.drawString(x, y, f"Job ID: {job_id}")
     y -= 15
@@ -596,7 +592,6 @@ def generate_internal_summary(data: ProposalRequest):
     c.drawString(x, y, f"Date: {datetime.now().strftime('%m/%d/%y')}")
     y -= 25
 
-    # Cost Breakdown
     c.setFont("Helvetica-Bold", 12)
     c.drawString(x, y, "Cost Breakdown:")
     y -= 18
@@ -607,15 +602,10 @@ def generate_internal_summary(data: ProposalRequest):
     y -= 16
     c.drawString(x, y, f"Delivery Charge: ${delivery_charge:,.2f}")
     y -= 16
-    # Day rate per worker
     c.drawString(x, y, f"Day Rate (per worker): ${daily_rate:,.2f}")
     y -= 16
-
-    # Number of workers
     c.drawString(x, y, f"Workers: {num_workers}")
     y -= 16
-
-    # Total labor cost
     c.drawString(x, y, f"Total Labor Cost: ${total_labor:,.2f}")
     y -= 16
 
@@ -623,34 +613,30 @@ def generate_internal_summary(data: ProposalRequest):
     c.drawString(x, y, f"Total Job Cost: ${total_cost:,.2f}")
     y -= 25
 
-    # Production Info
     c.setFont("Helvetica-Bold", 12)
     c.drawString(x, y, "Production Info:")
     y -= 18
     c.setFont("Helvetica", 11)
     c.drawString(x, y, f"Estimated Production Time: {estimated_days} days")
     y -= 16
-
+    c.drawString(x, y, f"Additional Labor Days: {additional_days}")
+    y -= 16
     c.drawString(x, y, f"Number of Workers: {num_workers}")
     y -= 16
-
     c.drawString(x, y, f"Cost Per Linear Foot: ${price_per_lf:,.2f}")
     y -= 25
 
-    # Margin Projections
     c.setFont("Helvetica-Bold", 12)
     c.drawString(x, y, "Margin Projections:")
     y -= 18
 
-    # Build the table data: header row + three metric rows
     header_row = ["Metric", "20%", "30%", "40%", "50%"]
-    revenue_row = ["Revenue"] + [f"${margins[p][0]:,.2f}" for p in ["20%", "30%", "40%", "50%"]]
-    profit_row = ["Profit"] + [f"${margins[p][1]:,.2f}" for p in ["20%", "30%", "40%", "50%"]]
-    price_row = ["Price/LF"] + [f"${margins[p][2]:,.2f}" for p in ["20%", "30%", "40%", "50%"]]
+    revenue_row = ["Revenue"] + [f"${margins[p][0]:,.2f}" for p in header_row[1:]]
+    profit_row = ["Profit"] + [f"${margins[p][1]:,.2f}" for p in header_row[1:]]
+    price_row = ["Price/LF"] + [f"${margins[p][2]:,.2f}" for p in header_row[1:]]
 
     table_data_margins = [header_row, revenue_row, profit_row, price_row]
 
-    # Create a Table whose first column is labels and next columns are each margin
     table_margins = Table(table_data_margins, colWidths=[100, 80, 80, 80, 80])
     table_margins.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
@@ -663,42 +649,28 @@ def generate_internal_summary(data: ProposalRequest):
         ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
     ]))
 
-    # Determine how much space is needed for this margins‐table
     available_width = page_width - (2 * x)
-    available_height = y
-    _, table_margin_h = table_margins.wrap(available_width, available_height)
-
-    bottom_margin = 50
-    if table_margin_h + bottom_margin > y:
+    _, table_margin_h = table_margins.wrap(available_width, y)
+    if table_margin_h + 50 > y:
         c.showPage()
         y = page_height - 50
 
-    # Draw the margins table
     table_margins.drawOn(c, x, y - table_margin_h)
     y = y - table_margin_h - 20
 
-    # === Updated Materials Section ===
-
-    # Small gap before “Materials” header
+    # Materials Table
     y -= 10
-
-    # Materials Header
     c.setFont("Helvetica-Bold", 12)
     c.drawString(x, y, "Materials:")
-    y -= 15  # leave space for the table
+    y -= 15
 
-    # Build materials table data
     materials = fence_details.get("materials_needed", {})
     table_data = [["Material", "Quantity"]]
     for material, details in materials.items():
         label = material.replace("_", " ").title()
-        if isinstance(details, dict):
-            qty = round(details.get("quantity", 0))
-        else:
-            qty = round(details)
+        qty = round(details.get("quantity", 0)) if isinstance(details, dict) else round(details)
         table_data.append([label, qty])
 
-    # Create the Table
     table = Table(table_data, colWidths=[200, 100])
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
@@ -711,36 +683,20 @@ def generate_internal_summary(data: ProposalRequest):
         ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
     ]))
 
-    # 1) Determine how much vertical space the table needs
-    available_width = page_width - (2 * x)
-    available_height = y  # space from current y down to bottom
-    table_width, table_height = table.wrap(available_width, available_height)
-
-    # 2) If it doesn’t fit, start a new page and reset y
-    bottom_margin = 50
-    if table_height + bottom_margin > y:
+    table_width, table_height = table.wrap(available_width, y)
+    if table_height + 50 > y:
         c.showPage()
-        y = page_height - 50  # reset y at top
+        y = page_height - 50
 
-    # 3) Draw the table so its top aligns with the current y
     table.drawOn(c, x, y - table_height)
-
-    # 4) Move y below the table for any further content
     y = y - table_height - 20
 
-    # … any other content you might add below …
-
-    # Save PDF into buffer
     c.save()
     buffer.seek(0)
 
-    # Write buffer to a file and return via FileResponse
     output_path = f"internal_summary_{job_id}.pdf"
     with open(output_path, "wb") as f_out:
         f_out.write(buffer.read())
-
-    # (Optional) auto-open on macOS preview:
-    # subprocess.run(["open", output_path])
 
     return FileResponse(
         output_path,
