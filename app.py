@@ -399,18 +399,16 @@ def generate_job_spec_sheet(data: ProposalRequest):
     job = util.job_database[job_id]
     fence_details = job.get("fence_details", {})
 
-    # ─────── NEW BLOCK ───────
-    # Pull the raw materials dict and re-run your cost logic
+    # ─── Recalculate material costs ───
     raw_materials = fence_details.get("materials_needed", {})
     detailed_costs, _ = util.calculate_material_costs(
         raw_materials,
-        {},                        # no custom prices
-        "Master Halco Pricing",    # default strategy
+        {},
+        "Master Halco Pricing",
         fence_details.get("height"),
         fence_details.get("top_rail", False)
     )
     materials_needed = detailed_costs
-    # ───────────────────────────
 
     proposal_to = job.get("proposal_to", "Client")
     job_address = job.get("job_address", "Unknown Address")
@@ -427,7 +425,7 @@ def generate_job_spec_sheet(data: ProposalRequest):
     x_margin = 50
     y = height_pt - 72  # 1 inch
 
-    # Title & Basic Info
+    # Header
     c.setFont("Helvetica-Bold", 14)
     c.drawString(x_margin, y, "American Fence Concepts")
     y -= 20
@@ -469,28 +467,42 @@ def generate_job_spec_sheet(data: ProposalRequest):
     table = Table(table_data, colWidths=[180, 80, 80, 80])
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-        ("TEXTCOLOR",    (0, 0), (-1, 0), colors.black),
-        ("ALIGN",        (1, 1), (-1, -1), "CENTER"),
-        ("FONTNAME",     (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTNAME",     (0, 1), (-1, -1), "Helvetica"),
-        ("FONTSIZE",     (0, 0), (-1, -1), 10),
-        ("GRID",         (0, 0), (-1, -1), 0.5, colors.black),
-        ("BOTTOMPADDING",(0, 0), (-1, -1), 6),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+        ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 0), (-1, -1), 10),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
     ]))
-    table_height = len(table_data) * 18
-    table.wrapOn(c, width, height_pt)
-    table.drawOn(c, x_margin, y - table_height)
-    y -= table_height + 20
 
-    # Notes
+    bottom_margin = 50
+    available_width = width - 2 * x_margin
+    available_height = y - bottom_margin
+    table_w, table_h = table.wrap(available_width, available_height)
+
+    if table_h > available_height:
+        c.showPage()
+        y = height_pt - 72
+
+    table.drawOn(c, x_margin, y - table_h)
+    y -= table_h + 20
+
+    # Notes Section
     c.setFont("Helvetica-Bold", 12)
     c.drawString(x_margin, y, "Notes:")
-    y -= 20
+    y -= 16
     c.setFont("Helvetica", 11)
-    c.drawString(x_margin + 20, y, f"- {height}' High {fence_type.title()}")
-    y -= 18
-    if notes.strip():
-        c.drawString(x_margin + 20, y, f"- {notes.strip()}")
+
+    from textwrap import wrap
+    note_lines = wrap(notes.strip(), 90)
+    for line in note_lines:
+        if y < bottom_margin:
+            c.showPage()
+            y = height_pt - 72
+            c.setFont("Helvetica", 11)
+        c.drawString(x_margin + 20, y, f"- {line}")
+        y -= 14
 
     c.save()
     return FileResponse(output_path, filename="AFC_Job_Spec_Sheet.pdf", media_type="application/pdf")
