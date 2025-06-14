@@ -537,6 +537,10 @@ def generate_internal_summary(data: ProposalRequest):
     delivery_charge = costs.get("delivery_charge", 0)
     labor_info = costs.get("labor_costs", {})
     total_labor = labor_info.get("total_labor_cost", 0)
+    # === 1) extract day rate, crew size, and any extra days ===
+    daily_rate = labor_info.get("daily_rate", 0)  # $ per worker/day
+    num_workers = labor_info.get("crew_size", 0)  # or num_employees, etc.
+    additional_days = job.get("additional_days", 0)
 
     total_cost = material_total + material_tax + delivery_charge + total_labor
     estimated_days = job.get("estimated_days", "N/A")
@@ -591,8 +595,18 @@ def generate_internal_summary(data: ProposalRequest):
     y -= 16
     c.drawString(x, y, f"Delivery Charge: ${delivery_charge:,.2f}")
     y -= 16
-    c.drawString(x, y, f"Labor Cost: ${total_labor:,.2f}")
+    # Day rate per worker
+    c.drawString(x, y, f"Day Rate (per worker): ${daily_rate:,.2f}")
     y -= 16
+
+    # Number of workers
+    c.drawString(x, y, f"Workers: {num_workers}")
+    y -= 16
+
+    # Total labor cost
+    c.drawString(x, y, f"Total Labor Cost: ${total_labor:,.2f}")
+    y -= 16
+
     c.setFont("Helvetica-Bold", 11)
     c.drawString(x, y, f"Total Job Cost: ${total_cost:,.2f}")
     y -= 25
@@ -604,7 +618,11 @@ def generate_internal_summary(data: ProposalRequest):
     c.setFont("Helvetica", 11)
     c.drawString(x, y, f"Estimated Production Time: {estimated_days} days")
     y -= 16
-    c.drawString(x, y, f"Price Per Linear Foot: ${price_per_lf:,.2f}")
+
+    c.drawString(x, y, f"Number of Workers: {num_workers}")
+    y -= 16
+
+    c.drawString(x, y, f"Cost Per Linear Foot: ${price_per_lf:,.2f}")
     y -= 25
 
     # Margin Projections
