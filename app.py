@@ -565,12 +565,18 @@ def generate_internal_summary(data: InternalSummaryRequest):
         profit = revenue - total_cost
         return revenue, profit, revenue / linear_feet if linear_feet else 0
 
-    margins = {
-        "20%": margin_calc(0.20),
-        "30%": margin_calc(0.30),
-        "40%": margin_calc(0.40),
-        "50%": margin_calc(0.50),
+    default_margins = {
+        "20%": 0.20,
+        "30%": 0.30,
+        "40%": 0.40,
+        "50%": 0.50,
     }
+    custom_margin = data.custom_margin
+    if custom_margin is not None:
+        label = f"{int(custom_margin * 100)}%"
+        default_margins[label] = custom_margin
+
+    margins = {label: margin_calc(pct) for label, pct in default_margins.items()}
 
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)

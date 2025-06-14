@@ -80,10 +80,12 @@ class JobIDRequest(BaseModel):
 
 class InternalSummaryRequest(BaseModel):
     job_id: str
-    daily_rate: Union[float, None] = None
-    crew_size: Union[int, None] = None
-    estimated_days: Union[float, None] = None
-    additional_days: int = 0
+    daily_rate: Optional[float] = None
+    crew_size: Optional[int] = None
+    estimated_days: Optional[int] = None
+    additional_days: Optional[int] = 0
+    custom_margin: Optional[float] = None  # e.g. 0.35 for 35%
+
 
 
 
