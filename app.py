@@ -570,13 +570,18 @@ def generate_internal_summary(data: InternalSummaryRequest):
         "50%": 0.50,
     }
 
-    selected_margin_pct = data.custom_margin
     highlight_label = None
 
-    if selected_margin_pct is not None:
-        highlight_label = f"{int(selected_margin_pct * 100)}%"
-        if highlight_label not in default_margins:
-            default_margins[highlight_label] = selected_margin_pct
+    # Add custom margin if needed
+    if data.custom_margin is not None:
+        custom_label = f"{int(data.custom_margin * 100)}%"
+        default_margins[custom_label] = data.custom_margin
+
+    # Determine which margin to highlight
+    if data.selected_margin is not None:
+        highlight_label = f"{int(data.selected_margin * 100)}%"
+    elif data.custom_margin is not None:
+        highlight_label = f"{int(data.custom_margin * 100)}%"
 
     margins = {label: margin_calc(pct) for label, pct in default_margins.items()}
 

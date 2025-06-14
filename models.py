@@ -85,6 +85,8 @@ class InternalSummaryRequest(BaseModel):
     estimated_days: Optional[int] = None
     additional_days: Optional[int] = 0
     custom_margin: Optional[float] = None  # e.g. 0.35 for 35%
+    selected_margin: Optional[float] = None
+
 
 
 
