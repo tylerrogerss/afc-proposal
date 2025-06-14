@@ -549,7 +549,6 @@ def generate_internal_summary(data: InternalSummaryRequest):
     delivery_charge = costs.get("delivery_charge", 0)
     labor_info = costs.get("labor_costs", {})
 
-    # Accept values from frontend (with fallback to defaults)
     daily_rate = data.daily_rate or labor_info.get("daily_rate") or 0
     num_workers = data.crew_size or labor_info.get("crew_size") or 0
     estimated_days = data.estimated_days if data.estimated_days is not None else job.get("estimated_days", "N/A")
@@ -564,7 +563,6 @@ def generate_internal_summary(data: InternalSummaryRequest):
         profit = revenue - total_cost
         return revenue, profit, revenue / linear_feet if linear_feet else 0
 
-    # Base margins
     default_margins = {
         "20%": 0.20,
         "30%": 0.30,
@@ -572,15 +570,16 @@ def generate_internal_summary(data: InternalSummaryRequest):
         "50%": 0.50,
     }
 
-    # Add custom margin if present
-    custom_margin = data.custom_margin
-    if custom_margin is not None:
-        label = f"{int(custom_margin * 100)}%"
-        default_margins[label] = custom_margin
+    selected_margin_pct = data.custom_margin
+    highlight_label = None
+
+    if selected_margin_pct is not None:
+        highlight_label = f"{int(selected_margin_pct * 100)}%"
+        if highlight_label not in default_margins:
+            default_margins[highlight_label] = selected_margin_pct
 
     margins = {label: margin_calc(pct) for label, pct in default_margins.items()}
 
-    # Begin PDF
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
     page_width, page_height = letter
@@ -635,7 +634,6 @@ def generate_internal_summary(data: InternalSummaryRequest):
     c.drawString(x, y, f"Cost Per Linear Foot: ${price_per_lf:,.2f}")
     y -= 25
 
-    # Margin Table with dynamic columns
     c.setFont("Helvetica-Bold", 12)
     c.drawString(x, y, "Margin Projections:")
     y -= 18
@@ -648,6 +646,8 @@ def generate_internal_summary(data: InternalSummaryRequest):
 
     table_data_margins = [header_row, revenue_row, profit_row, price_row]
 
+    table_margins = Table(table_data_margins, colWidths=[100] + [80] * len(header_labels))
+
     margin_table_style = [
         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
@@ -659,16 +659,12 @@ def generate_internal_summary(data: InternalSummaryRequest):
         ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
     ]
 
-    # Highlight selected/custom margin
-    if data.custom_margin is not None:
-        selected_label = f"{int(data.custom_margin * 100)}%"
-        if selected_label in header_labels:
-            col_index = header_labels.index(selected_label) + 1  # +1 because 0 is "Metric"
-            margin_table_style.append(
-                ("BACKGROUND", (col_index, 0), (col_index, -1), colors.lightblue)
-            )
+    if highlight_label and highlight_label in header_labels:
+        col_index = header_labels.index(highlight_label) + 1
+        margin_table_style.append(
+            ("BACKGROUND", (col_index, 0), (col_index, -1), colors.lightblue)
+        )
 
-    table_margins = Table(table_data_margins, colWidths=[100] + [80] * len(header_labels))
     table_margins.setStyle(TableStyle(margin_table_style))
 
     available_width = page_width - (2 * x)
@@ -680,8 +676,6 @@ def generate_internal_summary(data: InternalSummaryRequest):
     table_margins.drawOn(c, x, y - table_margin_h)
     y -= table_margin_h + 20
 
-    # Materials Table
-    y -= 10
     c.setFont("Helvetica-Bold", 12)
     c.drawString(x, y, "Materials:")
     y -= 15
