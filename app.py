@@ -552,7 +552,6 @@ def generate_internal_summary(data: InternalSummaryRequest):
     # Accept values from frontend (with fallback to defaults)
     daily_rate = data.daily_rate or labor_info.get("daily_rate") or 0
     num_workers = data.crew_size or labor_info.get("crew_size") or 0
-
     estimated_days = data.estimated_days if data.estimated_days is not None else job.get("estimated_days", "N/A")
     additional_days = data.additional_days or 0
 
@@ -565,12 +564,15 @@ def generate_internal_summary(data: InternalSummaryRequest):
         profit = revenue - total_cost
         return revenue, profit, revenue / linear_feet if linear_feet else 0
 
+    # Base margins
     default_margins = {
         "20%": 0.20,
         "30%": 0.30,
         "40%": 0.40,
         "50%": 0.50,
     }
+
+    # Add custom margin if present
     custom_margin = data.custom_margin
     if custom_margin is not None:
         label = f"{int(custom_margin * 100)}%"
@@ -578,6 +580,7 @@ def generate_internal_summary(data: InternalSummaryRequest):
 
     margins = {label: margin_calc(pct) for label, pct in default_margins.items()}
 
+    # Begin PDF
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
     page_width, page_height = letter
@@ -632,18 +635,20 @@ def generate_internal_summary(data: InternalSummaryRequest):
     c.drawString(x, y, f"Cost Per Linear Foot: ${price_per_lf:,.2f}")
     y -= 25
 
+    # Margin Table with dynamic columns
     c.setFont("Helvetica-Bold", 12)
     c.drawString(x, y, "Margin Projections:")
     y -= 18
 
-    header_row = ["Metric", "20%", "30%", "40%", "50%"]
-    revenue_row = ["Revenue"] + [f"${margins[p][0]:,.2f}" for p in header_row[1:]]
-    profit_row = ["Profit"] + [f"${margins[p][1]:,.2f}" for p in header_row[1:]]
-    price_row = ["Price/LF"] + [f"${margins[p][2]:,.2f}" for p in header_row[1:]]
+    header_labels = list(margins.keys())
+    header_row = ["Metric"] + header_labels
+    revenue_row = ["Revenue"] + [f"${margins[label][0]:,.2f}" for label in header_labels]
+    profit_row = ["Profit"] + [f"${margins[label][1]:,.2f}" for label in header_labels]
+    price_row = ["Price/LF"] + [f"${margins[label][2]:,.2f}" for label in header_labels]
 
     table_data_margins = [header_row, revenue_row, profit_row, price_row]
 
-    table_margins = Table(table_data_margins, colWidths=[100, 80, 80, 80, 80])
+    table_margins = Table(table_data_margins, colWidths=[100] + [80] * len(header_labels))
     table_margins.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
@@ -662,7 +667,7 @@ def generate_internal_summary(data: InternalSummaryRequest):
         y = page_height - 50
 
     table_margins.drawOn(c, x, y - table_margin_h)
-    y = y - table_margin_h - 20
+    y -= table_margin_h + 20
 
     # Materials Table
     y -= 10
@@ -695,7 +700,7 @@ def generate_internal_summary(data: InternalSummaryRequest):
         y = page_height - 50
 
     table.drawOn(c, x, y - table_height)
-    y = y - table_height - 20
+    y -= table_height + 20
 
     c.save()
     buffer.seek(0)
