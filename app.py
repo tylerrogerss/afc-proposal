@@ -495,15 +495,27 @@ def generate_job_spec_sheet(data: ProposalRequest):
     y -= 16
     c.setFont("Helvetica", 11)
 
-    from textwrap import wrap
-    note_lines = wrap(notes.strip(), 90)
-    for line in note_lines:
-        if y < bottom_margin:
-            c.showPage()
-            y = height_pt - 72
-            c.setFont("Helvetica", 11)
-        c.drawString(x_margin + 20, y, f"- {line}")
-        y -= 14
+    if notes.strip():
+        from reportlab.lib.utils import simpleSplit
+        max_note_width = width - x_margin * 2 - 30  # 30 to account for dash & indent
+        # Split notes into paragraphs by newline
+        paragraphs = [p.strip() for p in notes.strip().split('\n') if p.strip()]
+        for para in paragraphs:
+            # Wrap the paragraph to fit within the width
+            wrapped_lines = simpleSplit(para, "Helvetica", 11, max_note_width)
+            for i, line in enumerate(wrapped_lines):
+                if y <= bottom_margin:
+                    c.showPage()
+                    y = height_pt - 72
+                    c.setFont("Helvetica-Bold", 12)
+                    c.drawString(x_margin, y, "Notes (cont'd):")
+                    y -= 16
+                    c.setFont("Helvetica", 11)
+                # Only put the dash on the first line of each bullet point
+                prefix = "- " if i == 0 else "  "
+                c.drawString(x_margin + 20, y, prefix + line)
+                y -= 14
+            y -= 2  # Slight extra space between bullets
 
     c.save()
     return FileResponse(output_path, filename="AFC_Job_Spec_Sheet.pdf", media_type="application/pdf")
