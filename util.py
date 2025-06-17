@@ -626,6 +626,58 @@ def calculate_material_costs(materials, custom_prices=None, pricing_strategy=Non
 
     return detailed_costs, round(total_cost, 2)
 
+def calculate_vinyl_material_costs(
+    materials,
+    custom_prices=None,
+    pricing_strategy=None,
+    height=None,
+    top_rail=True
+):
+    import math
+
+    custom_prices = custom_prices or {}
+
+    # Ensure height is an int
+    vinyl_height = int(height) if height is not None else None
+
+    # Check if this vinyl has chain link add-on
+    with_chain_link = materials.get("with_chain_link", False)
+
+    # Pick the correct pricing dictionary
+    pricing_dict = VINYL_CHAINLINK_PRICING if with_chain_link else VINYL_PRICING
+
+    if vinyl_height not in pricing_dict:
+        raise ValueError(f"No vinyl pricing found for height {vinyl_height}")
+
+    pricing = pricing_dict[vinyl_height]
+
+    # Build lookup tables
+    merged_prices = {k: v["unit_price"] for k, v in pricing.items()}
+    unit_sizes = {k: v["unit_size"] for k, v in pricing.items()}
+    merged_prices.update(custom_prices)
+
+    detailed_costs = {}
+    total_cost = 0
+
+    for material, quantity in materials.items():
+        if material in merged_prices:
+            unit_size = unit_sizes.get(material, 1)
+            order_size = math.ceil(quantity / unit_size)
+            unit_price = round(merged_prices.get(material, 0), 2)
+            material_total = round(order_size * unit_price, 2)
+            detailed_costs[material] = {
+                "quantity": quantity,
+                "unit_size": unit_size,
+                "order_size": order_size,
+                "unit_price": unit_price,
+                "total_cost": material_total
+            }
+            total_cost += material_total
+
+    # RETURN TWO VALUES!
+    return detailed_costs, round(total_cost, 2)
+
+
 
 # === Labor Duration (num_days) ===
 def calculate_num_days(
@@ -762,9 +814,24 @@ def calculate_total_costs(
         raise
 
     try:
-        detailed_material_costs, material_total = calculate_material_costs(
-            materials_needed, material_prices, pricing_strategy, height, top_rail
-        )
+        # Check fence_type for vinyl
+        fence_type = fence_details.get("fence_type", "").lower().replace(" ", "_")
+        if fence_type == "vinyl":
+            detailed_material_costs, material_total = calculate_vinyl_material_costs(
+                materials_needed,
+                custom_prices=material_prices,
+                pricing_strategy=pricing_strategy,
+                height=height,
+                top_rail=top_rail
+            )
+        else:
+            detailed_material_costs, material_total = calculate_material_costs(
+                materials_needed,
+                custom_prices=material_prices,
+                pricing_strategy=pricing_strategy,
+                height=height,
+                top_rail=top_rail
+            )
         print("✅ Material costs calculated")
     except Exception as e:
         print("❌ Error in calculate_material_costs:", str(e))
