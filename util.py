@@ -10,6 +10,31 @@ default_labor_values = {
     "num_employees": 3,
 }
 
+SP_WROUGHT_IRON_PRICING = {
+    4: {
+        "panel": {"unit_size": 1, "unit_price": 95.00},
+        "posts": {"unit_size": 1, "unit_price": 17.50},
+        "post_caps": {"unit_size": 1, "unit_price": 0.98},
+        "sliders": {"unit_size": 1, "unit_price": 0.32},
+        "screws": {"unit_size": 50, "unit_price": 24.50},
+        "cans_spray_paint": {"unit_size": 1, "unit_price": 5.98},
+        "bags_of_concrete": {"unit_size": 1, "unit_price": 2.58},
+    },
+    5: {
+        "panel": {"unit_size": 1, "unit_price": 95.00},
+        "posts": {"unit_size": 1, "unit_price": 17.50},
+        "post_caps": {"unit_size": 1, "unit_price": 0.98},
+        "sliders": {"unit_size": 1, "unit_price": 0.32},
+        "screws": {"unit_size": 50, "unit_price": 24.50},
+        "cans_spray_paint": {"unit_size": 1, "unit_price": 5.98},
+        "bags_of_concrete": {"unit_size": 1, "unit_price": 2.58},
+    }
+}
+
+
+
+
+
 VINYL_PRICING = {
     4: {
         "corner_posts": {"unit_size": 1, "unit_price": 18.00},
@@ -287,6 +312,41 @@ fence_specialties_pricing = {
         "cans_of_spray_paint": {"unit_size": 1, "unit_price": 5.98},
     },
 }
+
+WOOD_PRICING = {
+    # Good Neighbor 6' WITH BOB
+    ("good neighbor", 6, True): {
+        "postmaster_posts":    {"unit_size": 1,    "unit_price": 28.00},
+        "horizontal_rails":    {"unit_size": 1,    "unit_price": 4.98},
+        "boards":              {"unit_size": 1,    "unit_price": 3.85},
+        "caps":                {"unit_size": 1,    "unit_price": 4.98},
+        "trim_boards":         {"unit_size": 1,    "unit_price": 3.50},
+        "screws":              {"unit_size": 50,   "unit_price": 24.95},
+        "nails":               {"unit_size": 100,  "unit_price": 44.49},
+        "bags_of_concrete":    {"unit_size": 1,    "unit_price": 2.58},
+    },
+    # Good Neighbor 6' WITHOUT BOB
+    ("good neighbor", 6, False): {
+        "postmaster_posts":    {"unit_size": 1,    "unit_price": 28.00},
+        "horizontal_rails":    {"unit_size": 1,    "unit_price": 4.98},
+        "boards":              {"unit_size": 1,    "unit_price": 3.85},
+        "caps":                {"unit_size": 1,    "unit_price": 4.98},
+        "trim_boards":         {"unit_size": 1,    "unit_price": 3.50},
+        "screws":              {"unit_size": 50,   "unit_price": 24.95},
+        "nails":               {"unit_size": 100,  "unit_price": 44.49},
+        "bags_of_concrete":    {"unit_size": 1,    "unit_price": 2.58},
+    },
+    # Dogeared 6'
+    ("dogeared", 6, False): {
+        "postmaster_posts":    {"unit_size": 1,    "unit_price": 28.00},
+        "horizontal_rails":    {"unit_size": 1,    "unit_price": 4.98},
+        "boards":              {"unit_size": 1,    "unit_price": 3.85},
+        "screws":              {"unit_size": 50,   "unit_price": 24.95},
+        "nails":               {"unit_size": 100,  "unit_price": 44.49},
+        "bags_of_concrete":    {"unit_size": 1,    "unit_price": 2.58},
+    }
+}
+
 
 default_material_prices = {}
 job_database = {}
@@ -677,6 +737,110 @@ def calculate_vinyl_material_costs(
     # RETURN TWO VALUES!
     return detailed_costs, round(total_cost, 2)
 
+def calculate_sp_wrought_iron_material_costs(
+    materials,
+    custom_prices=None,
+    pricing_strategy=None,
+    height=None,
+    top_rail=True
+):
+
+    import math
+    print("🛠️ DEBUG SP WROUGHT IRON MATERIAL COSTS")
+    print("  materials:", materials)
+    print("  height:", height)
+    print("  pricing dict keys:", SP_WROUGHT_IRON_PRICING.keys())
+    print("  pricing_strategy:", pricing_strategy)
+
+    custom_prices = custom_prices or {}
+
+    # Ensure height is an int
+    iron_height = int(height) if height is not None else None
+
+    pricing_dict = SP_WROUGHT_IRON_PRICING
+
+    if iron_height not in pricing_dict:
+        raise ValueError(f"No SP Wrought Iron pricing found for height {iron_height}")
+
+    pricing = pricing_dict[iron_height]
+
+    # --- INSERT THIS PRINT STATEMENT HERE ---
+    print("🔎 Loaded pricing dict for height", iron_height, ":", pricing)
+    # ----------------------------------------
+
+    # Build lookup tables for prices and unit sizes
+    merged_prices = {k: v["unit_price"] for k, v in pricing.items()}
+    unit_sizes = {k: v["unit_size"] for k, v in pricing.items()}
+    merged_prices.update(custom_prices)
+
+    detailed_costs = {}
+    total_cost = 0
+
+    for material, quantity in materials.items():
+        print(f"Material: {material}, Quantity: {quantity}")
+        if material in merged_prices:
+            print(f"  Found in pricing! Unit price: {merged_prices[material]}, Unit size: {unit_sizes[material]}")
+            unit_size = unit_sizes.get(material, 1)
+            order_size = math.ceil(quantity / unit_size)
+            unit_price = round(merged_prices.get(material, 0), 2)
+            material_total = round(order_size * unit_price, 2)
+            detailed_costs[material] = {
+                "quantity": quantity,
+                "unit_size": unit_size,
+                "order_size": order_size,
+                "unit_price": unit_price,
+                "total_cost": material_total
+            }
+            total_cost += material_total
+
+    return detailed_costs, round(total_cost, 2)
+
+def calculate_wood_material_costs(
+    materials,
+    custom_prices=None,
+    style=None,
+    height=None,
+    bob=False
+):
+    import math
+
+    custom_prices = custom_prices or {}
+
+    # Ensure inputs are normalized
+    style_key = str(style).strip().lower()
+    height_key = int(height) if height is not None else 6
+    bob_key = bool(bob)
+
+    # Look up the correct pricing dictionary
+    key = (style_key, height_key, bob_key)
+    if key not in WOOD_PRICING:
+        raise ValueError(f"No wood pricing found for style={style_key}, height={height_key}, bob={bob_key}")
+
+    pricing = WOOD_PRICING[key]
+    merged_prices = {k: v["unit_price"] for k, v in pricing.items()}
+    unit_sizes = {k: v["unit_size"] for k, v in pricing.items()}
+    merged_prices.update(custom_prices)
+
+    detailed_costs = {}
+    total_cost = 0
+
+    for material, quantity in materials.items():
+        if material in merged_prices:
+            unit_size = unit_sizes.get(material, 1)
+            order_size = math.ceil(quantity / unit_size)
+            unit_price = round(merged_prices.get(material, 0), 2)
+            material_total = round(order_size * unit_price, 2)
+            detailed_costs[material] = {
+                "quantity": quantity,
+                "unit_size": unit_size,
+                "order_size": order_size,
+                "unit_price": unit_price,
+                "total_cost": material_total
+            }
+            total_cost += material_total
+
+    return detailed_costs, round(total_cost, 2)
+
 
 
 # === Labor Duration (num_days) ===
@@ -803,20 +967,22 @@ def calculate_total_costs(
         if isinstance(top_rail, str):
             top_rail = top_rail.lower() == "true"
         linear_feet = fence_details.get("linear_feet")
-
-        print("✅ Fence Details:")
-        print("  materials_needed:", materials_needed)
-        print("  height:", height)
-        print("  top_rail:", top_rail)
-        print("  linear_feet:", linear_feet)
+        style = fence_details.get("style", None)
+        bob = fence_details.get("bob", False)
     except Exception as e:
         print("❌ Error unpacking fence_details:", str(e))
         raise
 
+    print(f"DEBUG RAW fence_type: [{fence_details.get('fence_type')}]")
+    print(f"DEBUG STRIPPED/LOWER fence_type: [{fence_details.get('fence_type', '').strip().lower()}]")
+
     try:
-        # Check fence_type for vinyl
-        fence_type = fence_details.get("fence_type", "").lower().replace(" ", "_")
-        if fence_type == "vinyl":
+        fence_type = fence_details.get("fence_type", "")
+        normalized_fence_type = fence_type.strip().lower().replace(" ", "_")
+        print(f"DEBUG RAW fence_type: [{fence_type}]")
+        print(f"DEBUG NORMALIZED fence_type: [{normalized_fence_type}]")
+        if normalized_fence_type == "vinyl":
+            print("DEBUG: Entering VINYL block")
             detailed_material_costs, material_total = calculate_vinyl_material_costs(
                 materials_needed,
                 custom_prices=material_prices,
@@ -824,7 +990,26 @@ def calculate_total_costs(
                 height=height,
                 top_rail=top_rail
             )
+        elif normalized_fence_type == "sp_wrought_iron":
+            print("DEBUG: calling calculate_sp_wrought_iron_material_costs")
+            detailed_material_costs, material_total = calculate_sp_wrought_iron_material_costs(
+                materials_needed,
+                custom_prices=material_prices,
+                pricing_strategy=pricing_strategy,
+                height=height,
+                top_rail=top_rail
+            )
+        elif normalized_fence_type == "wood":
+            print("DEBUG: calling calculate_wood_material_costs")
+            detailed_material_costs, material_total = calculate_wood_material_costs(
+                materials_needed,
+                custom_prices=material_prices,
+                style=style,
+                height=height,
+                bob=bob
+            )
         else:
+            print("DEBUG: Entering DEFAULT block")
             detailed_material_costs, material_total = calculate_material_costs(
                 materials_needed,
                 custom_prices=material_prices,
