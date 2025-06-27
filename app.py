@@ -151,26 +151,52 @@ def get_material_costs(data: CostEstimation):
     if isinstance(top_rail, str):
         top_rail = top_rail.lower() == "true"
 
-    # NEW: for wood
     style = fence_details.get("style")
     bob = fence_details.get("bob", False)
     fence_type = fence_details.get("fence_type", "").strip().lower()
-
     materials_needed = fence_details.get("materials_needed", {})
+    with_chain_link = fence_details.get("with_chain_link", False)
+
     if not materials_needed:
         raise HTTPException(status_code=400, detail="No materials needed found in fence details.")
 
-    # Pass style, bob, fence_type!
-    detailed_costs, material_total = util.calculate_material_costs(
-        materials_needed,
-        data.material_prices,
-        data.pricing_strategy,
-        height,
-        top_rail,
-        fence_type=fence_type,
-        style=style,
-        bob=bob
-    )
+    # Dispatch to the correct calculation function based on fence type
+    if fence_type == "vinyl":
+        detailed_costs, material_total = util.calculate_vinyl_material_costs(
+            materials_needed,
+            custom_prices=data.material_prices,
+            pricing_strategy=data.pricing_strategy,
+            height=height,
+            top_rail=top_rail,
+            with_chain_link=with_chain_link
+        )
+    elif fence_type == "wood":
+        detailed_costs, material_total = util.calculate_wood_material_costs(
+            materials_needed,
+            custom_prices=data.material_prices,
+            style=style,
+            height=height,
+            bob=bob
+        )
+    elif fence_type == "sp_wrought_iron":
+        detailed_costs, material_total = util.calculate_sp_wrought_iron_material_costs(
+            materials_needed,
+            custom_prices=data.material_prices,
+            pricing_strategy=data.pricing_strategy,
+            height=height,
+            top_rail=top_rail
+        )
+    else:
+        detailed_costs, material_total = util.calculate_material_costs(
+            materials_needed,
+            data.material_prices,
+            data.pricing_strategy,
+            height,
+            top_rail,
+            fence_type=fence_type,
+            style=style,
+            bob=bob
+        )
 
     return {
         "material_total": material_total,
