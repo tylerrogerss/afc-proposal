@@ -178,7 +178,7 @@ def get_material_costs(data: CostEstimation):
             height=height,
             bob=bob
         )
-    elif fence_type == "sp_wrought_iron":
+    elif fence_type == "sp wrought iron":
         detailed_costs, material_total = util.calculate_sp_wrought_iron_material_costs(
             materials_needed,
             custom_prices=data.material_prices,
