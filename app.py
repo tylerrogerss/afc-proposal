@@ -478,7 +478,7 @@ def generate_job_spec_sheet(data: ProposalRequest):
             height=height,
             bob=bob
         )
-    elif fence_type == "sp_wrought_iron":
+    elif fence_type == "sp wrought iron":
         detailed_costs, _ = util.calculate_sp_wrought_iron_material_costs(
             raw_materials,
             custom_prices={},
