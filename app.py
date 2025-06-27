@@ -62,15 +62,25 @@ def submit_job_details(details: JobDetails):
 
 @app.post("/new_bid/fence_details")
 def submit_fence_details(details: dict = Body(...)):
+
+    print("\n=== /new_bid/fence_details called ===")
+    print("RAW details payload:", details)
+
     try:
         fence_type = details.get("fence_type", "").lower()
         job_id = details.get("job_id")
+        print("Normalized fence_type:", fence_type)
+        print("Job ID:", job_id)
+
+
 
         if not job_id:
             raise HTTPException(status_code=400, detail="Missing job_id")
 
         if fence_type == "chain link":
+            print("CHAIN LINK DEBUG: height =", details.get("height"), "top_rail =", details.get("top_rail"))
             validated = ChainLinkDetails(**details)
+            print("CHAIN LINK DEBUG: validated =", validated)
             materials = util.calculate_materials_chain_link(
                 lf=validated.linear_feet,
                 cp=validated.corner_posts,
@@ -90,7 +100,10 @@ def submit_fence_details(details: dict = Body(...)):
             )
 
         elif fence_type == "wood":
+            print("WOOD DEBUG: style =", details.get("style"), "bob =", details.get("bob"), "height =",
+                  details.get("height"))
             validated = WoodDetails(**details)
+            print("WOOD DEBUG: validated =", validated)
             materials = util.calculate_materials_wood(
                 lf=validated.linear_feet,
                 style=validated.style,
@@ -104,6 +117,7 @@ def submit_fence_details(details: dict = Body(...)):
                 lf=validated.linear_feet,
                 height=validated.height
             )
+            print("WOOD DEBUG: calculated materials:", materials)
 
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported fence type: {fence_type}")
@@ -137,22 +151,32 @@ def get_material_costs(data: CostEstimation):
     if isinstance(top_rail, str):
         top_rail = top_rail.lower() == "true"
 
+    # NEW: for wood
+    style = fence_details.get("style")
+    bob = fence_details.get("bob", False)
+    fence_type = fence_details.get("fence_type", "").strip().lower()
+
     materials_needed = fence_details.get("materials_needed", {})
     if not materials_needed:
         raise HTTPException(status_code=400, detail="No materials needed found in fence details.")
 
+    # Pass style, bob, fence_type!
     detailed_costs, material_total = util.calculate_material_costs(
         materials_needed,
         data.material_prices,
         data.pricing_strategy,
         height,
-        top_rail
+        top_rail,
+        fence_type=fence_type,
+        style=style,
+        bob=bob
     )
 
     return {
         "material_total": material_total,
         "detailed_costs": detailed_costs
     }
+
 
 
 @app.post("/new_bid/add_notes")
@@ -167,6 +191,8 @@ def add_notes(note_data: Notes):
 
 @app.post("/new_bid/cost_estimation")
 def cost_estimation(data: CostEstimation):
+    print("🔥 COST ESTIMATION PAYLOAD RECEIVED FROM FRONTEND 🔥")
+    print(data)
     try:
         if data.job_id not in util.job_database:
             raise HTTPException(status_code=404, detail="Job ID does not exist")

@@ -56,23 +56,25 @@ VINYL_PRICING = {
     }
 }
 
+
 VINYL_CHAINLINK_PRICING = {
     5: {
         "corner_posts": {"unit_size": 1, "unit_price": 18.00},
         "end_posts": {"unit_size": 1, "unit_price": 18.00},
         "line_posts": {"unit_size": 1, "unit_price": 18.00},
-        "rails_16ft": {"unit_size": 1, "unit_price": 15.50},
+        "rails": {"unit_size": 1, "unit_price": 15.50},
         "post_caps": {"unit_size": 1, "unit_price": 1.29},
-        "chain_link_roll_50ft": {"unit_size": 50, "unit_price": 133.50},
-        "tension_bars_5ft": {"unit_size": 1, "unit_price": 8.25},
+        "chain_link_roll": {"unit_size": 50, "unit_price": 133.50},
+        "tension_bars": {"unit_size": 1, "unit_price": 8.25},
         "tension_wire": {"unit_size": 1250, "unit_price": 77.00},
         "hog_rings": {"unit_size": 100, "unit_price": 4.73},
-        "screws_big": {"unit_size": 100, "unit_price": 24.59},
-        "screws_small": {"unit_size": 100, "unit_price": 24.59},
+        "screws (3/8\" - bigger)": {"unit_size": 100, "unit_price": 24.59},
+        "screws (1-1/4\" - smaller)": {"unit_size": 100, "unit_price": 24.59},
         "steel_clips": {"unit_size": 100, "unit_price": 35.50},
-        "concrete_bags": {"unit_size": 1, "unit_price": 2.98},
+        "bags_of_concrete": {"unit_size": 1, "unit_price": 2.98},
     }
 }
+
 
 
 # Master Halco pricing unit sizes and unit prices
@@ -528,9 +530,9 @@ def calculate_materials_vinyl(lf, cp, ep, height, with_chain_link):
         materials["tension_bars"] = round_up(tension_bars)
         materials["tension_wire"] = round_up(tension_wire)
         materials["hog_rings"] = round_up(hog_rings)
-        materials["screws (1-1/4\\\" - smaller)"] = round_up(line_posts * 4)
+        materials['screws (1-1/4" - smaller)'] = round_up(line_posts * 4)
         materials["steel_clips"] = round_up(line_posts * 4)  # Equal to smaller screws
-        materials["screws (3/8\\\" - bigger)"] = round_up((tension_bars * 5) + (rails * 2))
+        materials['screws (3/8" - bigger)'] = round_up((tension_bars * 5) + (rails * 2))
     else:
         materials["screws"] = round_up(rails * 2)
 
@@ -613,17 +615,39 @@ def add_notes_to_job(job_id, notes):
         raise ValueError(f"Job ID {job_id} does not exist.")
     job_database[job_id]["notes"] = notes
 
-def calculate_material_costs(materials, custom_prices=None, pricing_strategy=None, height=None, top_rail=True):
+def calculate_material_costs(
+    materials,
+    custom_prices=None,
+    pricing_strategy=None,
+    height=None,
+    top_rail=True,
+    fence_type=None,
+    style=None,
+    bob=None,
+    with_chain_link=None
+):
     import math
 
     custom_prices = custom_prices or {}
 
-    fence_type = materials.get("fence_type", "").lower()
+    # Accept fence_type from argument or from the materials dict
+    ft = fence_type or materials.get("fence_type", "")
+    fence_type = str(ft).strip().lower()
+
+    # === WOOD PRICING ===
+    if fence_type == "wood":
+        return calculate_wood_material_costs(
+            materials,
+            custom_prices=custom_prices,
+            style=style,
+            height=height,
+            bob=bob
+        )
 
     # === MASTER HALCO VINYL PRICING ===
     if pricing_strategy == "Master Halco Pricing" and fence_type == "vinyl":
         vinyl_height = int(height)
-        with_chain_link = materials.get("with_chain_link", False)
+        with_chain_link = with_chain_link or materials.get("with_chain_link", False)
 
         pricing_dict = VINYL_CHAINLINK_PRICING if with_chain_link else VINYL_PRICING
         pricing = pricing_dict.get(vinyl_height, {})
@@ -664,7 +688,6 @@ def calculate_material_costs(materials, custom_prices=None, pricing_strategy=Non
         merged_prices = default_material_prices.copy()
         unit_sizes = {k: 1 for k in materials}
 
-    # Allow override with user-provided prices
     merged_prices.update(custom_prices)
 
     detailed_costs = {}
@@ -686,12 +709,14 @@ def calculate_material_costs(materials, custom_prices=None, pricing_strategy=Non
 
     return detailed_costs, round(total_cost, 2)
 
+
 def calculate_vinyl_material_costs(
     materials,
     custom_prices=None,
     pricing_strategy=None,
     height=None,
-    top_rail=True
+    top_rail=True,
+    with_chain_link=False   # <-- Added as an explicit parameter
 ):
     import math
 
@@ -700,9 +725,6 @@ def calculate_vinyl_material_costs(
     # Ensure height is an int
     vinyl_height = int(height) if height is not None else None
 
-    # Check if this vinyl has chain link add-on
-    with_chain_link = materials.get("with_chain_link", False)
-
     # Pick the correct pricing dictionary
     pricing_dict = VINYL_CHAINLINK_PRICING if with_chain_link else VINYL_PRICING
 
@@ -710,6 +732,18 @@ def calculate_vinyl_material_costs(
         raise ValueError(f"No vinyl pricing found for height {vinyl_height}")
 
     pricing = pricing_dict[vinyl_height]
+
+    # === DEBUG START ===
+    print("==== MATERIALS KEYS:", list(materials.keys()))
+    print("==== PRICING KEYS:", list(pricing.keys()))
+
+    for mat in materials.keys():
+        if mat not in pricing.keys():
+            print(f"KEY NOT FOUND IN PRICING: '{mat}'")
+    for mat in pricing.keys():
+        if mat not in materials.keys():
+            print(f"KEY NOT FOUND IN MATERIALS: '{mat}'")
+    # === DEBUG END ===
 
     # Build lookup tables
     merged_prices = {k: v["unit_price"] for k, v in pricing.items()}
@@ -733,6 +767,8 @@ def calculate_vinyl_material_costs(
                 "total_cost": material_total
             }
             total_cost += material_total
+        else:
+            print(f"WARNING: Material '{material}' is missing from merged_prices/pricing dictionary!")
 
     # RETURN TWO VALUES!
     return detailed_costs, round(total_cost, 2)
@@ -802,6 +838,8 @@ def calculate_wood_material_costs(
     height=None,
     bob=False
 ):
+    print("WOOD LOOKUP DEBUG -- style:", style, "height:", height, "bob:", bob)
+    print("WOOD LOOKUP KEY:", (style, int(height), bool(bob)))
     import math
 
     custom_prices = custom_prices or {}
@@ -983,13 +1021,16 @@ def calculate_total_costs(
         print(f"DEBUG NORMALIZED fence_type: [{normalized_fence_type}]")
         if normalized_fence_type == "vinyl":
             print("DEBUG: Entering VINYL block")
+            with_chain_link = fence_details.get("with_chain_link", False)
             detailed_material_costs, material_total = calculate_vinyl_material_costs(
                 materials_needed,
                 custom_prices=material_prices,
                 pricing_strategy=pricing_strategy,
                 height=height,
-                top_rail=top_rail
+                top_rail=top_rail,
+                with_chain_link=with_chain_link  # <-- Pass the flag!
             )
+
         elif normalized_fence_type == "sp_wrought_iron":
             print("DEBUG: calling calculate_sp_wrought_iron_material_costs")
             detailed_material_costs, material_total = calculate_sp_wrought_iron_material_costs(
