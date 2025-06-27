@@ -452,22 +452,57 @@ def generate_job_spec_sheet(data: ProposalRequest):
     job = util.job_database[job_id]
     fence_details = job.get("fence_details", {})
 
-    # ─── Recalculate material costs ───
+    # ─── Recalculate material costs with correct function per fence type ───
     raw_materials = fence_details.get("materials_needed", {})
-    detailed_costs, _ = util.calculate_material_costs(
-        raw_materials,
-        {},
-        "Master Halco Pricing",
-        fence_details.get("height"),
-        fence_details.get("top_rail", False)
-    )
+    fence_type = fence_details.get("fence_type", "").strip().lower()
+    with_chain_link = fence_details.get("with_chain_link", False)
+    height = fence_details.get("height")
+    top_rail = fence_details.get("top_rail", False)
+    style = fence_details.get("style")
+    bob = fence_details.get("bob", False)
+
+    if fence_type == "vinyl":
+        detailed_costs, _ = util.calculate_vinyl_material_costs(
+            raw_materials,
+            custom_prices={},
+            pricing_strategy="Master Halco Pricing",
+            height=height,
+            top_rail=top_rail,
+            with_chain_link=with_chain_link
+        )
+    elif fence_type == "wood":
+        detailed_costs, _ = util.calculate_wood_material_costs(
+            raw_materials,
+            custom_prices={},
+            style=style,
+            height=height,
+            bob=bob
+        )
+    elif fence_type == "sp_wrought_iron":
+        detailed_costs, _ = util.calculate_sp_wrought_iron_material_costs(
+            raw_materials,
+            custom_prices={},
+            pricing_strategy="Master Halco Pricing",
+            height=height,
+            top_rail=top_rail
+        )
+    else:
+        detailed_costs, _ = util.calculate_material_costs(
+            raw_materials,
+            {},
+            "Master Halco Pricing",
+            height,
+            top_rail,
+            fence_type=fence_type,
+            style=style,
+            bob=bob
+        )
     materials_needed = detailed_costs
 
     proposal_to = job.get("proposal_to", "Client")
     job_address = job.get("job_address", "Unknown Address")
-    fence_type = fence_details.get("fence_type", "Unknown Type")
-    height = fence_details.get("height", "N/A")
-    top_rail = fence_details.get("top_rail", False)
+    fence_type_label = fence_details.get("fence_type", "Unknown Type")
+    display_height = fence_details.get("height", "N/A")
     notes = job.get("notes", "")
     today = datetime.today().strftime("%m/%d/%y")
 
@@ -487,7 +522,7 @@ def generate_job_spec_sheet(data: ProposalRequest):
     y -= 29
 
     c.setFont("Helvetica", 10)
-    c.drawString(x_margin, y, f"Project Name: {proposal_to} - {fence_type.title()} Fence")
+    c.drawString(x_margin, y, f"Project Name: {proposal_to} - {fence_type_label.title()} Fence")
     y -= 14
     c.drawString(x_margin, y, f"Client: {proposal_to}")
     y -= 14
@@ -501,7 +536,7 @@ def generate_job_spec_sheet(data: ProposalRequest):
     c.drawString(x_margin, y, "Job Scope:")
     y -= 14
     c.setFont("Helvetica", 11)
-    c.drawString(x_margin + 20, y, f"- {height}' High {fence_type.title()}")
+    c.drawString(x_margin + 20, y, f"- {display_height}' High {fence_type_label.title()}")
     y -= 14
     if top_rail:
         c.drawString(x_margin + 20, y, "- Top Rail")
@@ -513,7 +548,7 @@ def generate_job_spec_sheet(data: ProposalRequest):
     for material, details in materials_needed.items():
         label = material.replace("_", " ").title()
         quantity  = round(details.get("quantity", 0))
-        unit_size = round(details.get("unit_size", 1))
+        unit_size = details.get("unit_size", 1)
         order_size= round(details.get("order_size", 0))
         table_data.append([label, quantity, unit_size, order_size])
 
@@ -571,6 +606,7 @@ def generate_job_spec_sheet(data: ProposalRequest):
 
     c.save()
     return FileResponse(output_path, filename="AFC_Job_Spec_Sheet.pdf", media_type="application/pdf")
+
 
 from fastapi import HTTPException
 from fastapi.responses import FileResponse
